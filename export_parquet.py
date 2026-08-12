@@ -23,6 +23,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -43,8 +44,17 @@ LIST_SEP = "|"
 
 
 def scalar(value):
-    """Списки (схлопнутые дубли характеристик) — в строку через разделитель."""
-    return LIST_SEP.join(map(str, value)) if isinstance(value, list) else value
+    """Привести значение к скаляру: таблица не хранит вложенные структуры.
+
+    Списки (схлопнутые дубли характеристик) склеиваются разделителем, словари
+    сериализуются — так читаются и старые выгрузки, где скидка и кэшбэк лежали
+    объектами.
+    """
+    if isinstance(value, list):
+        return LIST_SEP.join(json.dumps(v, ensure_ascii=False) if isinstance(v, dict) else str(v) for v in value)
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False)
+    return value
 
 
 def flatten(product: dict) -> dict:
@@ -119,8 +129,14 @@ def main() -> int:
     # Повторяющиеся строки — в словарь: бренды, страны, категории занимают
     # в разы меньше, когда хранятся как коды, а не как текст в каждой строке.
     for column in frame.columns:
-        if frame[column].dtype == object and frame[column].nunique(dropna=True) < len(frame) // 3:
-            frame[column] = frame[column].astype("category")
+        if frame[column].dtype != object:
+            continue
+        try:
+            if frame[column].nunique(dropna=True) < len(frame) // 3:
+                frame[column] = frame[column].astype("category")
+        except TypeError:
+            # значение неожиданного типа — оставляем колонку как есть
+            frame[column] = frame[column].map(scalar)
 
     name = source.name.split(".")[0] if source.is_file() else source.name
     out_path = Path(args.output or f"output/{name}.parquet")
