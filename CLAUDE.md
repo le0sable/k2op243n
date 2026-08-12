@@ -11,6 +11,7 @@
 | [parse_all_categories.py](parse_all_categories.py) | весь каталог | файл на категорию |
 | [parse_food_categories.py](parse_food_categories.py) | только пищевые | файл на категорию |
 | [parse_food.py](parse_food.py) | только пищевые | всё одним файлом |
+| [export_parquet.py](export_parquet.py) | — | конвертация выгрузки в Parquet |
 
 ```bash
 python auchan_parser.py moloko                     # одна категория
@@ -19,16 +20,21 @@ python parse_food_categories.py                    # пищевой срез п�
 python parse_food.py                               # пищевой срез одним файлом
 python parse_food.py --from-dir output/ГГГГ-ММ-ДД  # пищевой срез из готовой выгрузки
 python parse_all_categories.py --reviews           # + тексты отзывов (долго и тяжело)
+python export_parquet.py output/food-ГГГГ-ММ-ДД    # Parquet для анализа
 ```
 
 Куда пишется результат:
 
 | скрипт | путь |
 |---|---|
-| `auchan_parser.py` | `output/<категория>_simferopol.json` |
-| `parse_all_categories.py` | `output/ГГГГ-ММ-ДД/<категория>.json` + `_manifest.json` |
-| `parse_food_categories.py` | `output/food-ГГГГ-ММ-ДД/<категория>.json` + `_manifest.json` |
-| `parse_food.py` | `output/food_simferopol_ГГГГ-ММ-ДД.json` |
+| `auchan_parser.py` | `output/<категория>_simferopol.json.gz` |
+| `parse_all_categories.py` | `output/ГГГГ-ММ-ДД/<категория>.json.gz` + `_manifest.json` |
+| `parse_food_categories.py` | `output/food-ГГГГ-ММ-ДД/<категория>.json.gz` + `_manifest.json` |
+| `parse_food.py` | `output/food_simferopol_ГГГГ-ММ-ДД.json.gz` |
+
+Выгрузки сжимаются gzip'ом (примерно в 8 раз). Старые несжатые `.json`
+читаются всеми скриптами по-прежнему. Для анализа удобнее Parquet —
+он ещё в 10 раз меньше исходного JSON и читается по колонкам.
 
 Пищевой срез — 19 продуктовых разделов каталога, список в `FOOD_ROOTS`
 (`parse_food.py`), алкоголь отключается флагом `--no-alcohol`.

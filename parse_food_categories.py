@@ -30,7 +30,7 @@ import time
 from datetime import date
 from pathlib import Path
 
-from auchan_parser import MERCHANT_ID, MERCHANT_NAME, AuchanAPI
+from auchan_parser import MERCHANT_ID, MERCHANT_NAME, AuchanAPI, category_files
 from parse_all_categories import Collector, fetch_tree, iter_leaves, write_by_category
 from parse_food import ALCOHOL_ROOT, FOOD_ROOTS
 
@@ -55,7 +55,7 @@ def resolve_out_dir(expected: int, explicit: str | None) -> Path:
         reverse=True,
     )
     for candidate in dated:
-        done = len([f for f in candidate.glob("*.json") if f.name != "_manifest.json"])
+        done = len(category_files(candidate))
         if 0 < done < expected:
             print(f"Найден незавершённый прогон в {candidate} ({done} из {expected}) — продолжаю.")
             return candidate

@@ -16,15 +16,21 @@
 from __future__ import annotations
 
 import argparse
-import glob
-import json
 import os
 import sys
 import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 
-from auchan_parser import MERCHANT_ID, MERCHANT_NAME, REGION_ID, AuchanAPI, dump_json
+from auchan_parser import (
+    MERCHANT_ID,
+    MERCHANT_NAME,
+    REGION_ID,
+    AuchanAPI,
+    category_files,
+    read_json,
+    write_json,
+)
 from parse_all_categories import Collector, fetch_tree, iter_leaves
 
 # Состав списка выверен по данным полной выгрузки: для каждого корневого раздела
@@ -64,12 +70,12 @@ ALCOHOL_ROOT = "alkogol"
 def collect_from_dir(source: Path, roots: set[str]) -> list[dict]:
     """Пересобрать пищевой срез из готовой поcategory-выгрузки, без запросов к сайту."""
     by_code: dict[str, dict] = {}
-    files = [f for f in glob.glob(str(source / "*.json")) if not f.endswith("_manifest.json")]
+    files = category_files(source)
     if not files:
         raise SystemExit(f"В {source} нет файлов категорий.")
 
     for path in files:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        payload = read_json(path)
         # Фильтруем по «родным» категориям самого товара, а не по файлу, в
         # котором он лежит: один SKU попадает и в пищевые, и в тематические
         # подборки, а его categoryCodes всегда указывают на настоящее место.
@@ -100,7 +106,7 @@ def main() -> int:
         roots.add(ALCOHOL_ROOT)
 
     started = time.time()
-    out_path = Path(args.output or f"output/food_simferopol_{date.today().isoformat()}.json")
+    out_path = Path(args.output or f"output/food_simferopol_{date.today().isoformat()}.json.gz")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"Магазин: {MERCHANT_NAME} (merchantId={MERCHANT_ID})")
@@ -172,7 +178,7 @@ def main() -> int:
         },
         "products": products,
     }
-    out_path.write_text(dump_json(payload), encoding="utf-8")
+    write_json(out_path, payload)
 
     print(f"\nГотово за {(time.time() - started) / 60:.1f} мин")
     print(f"  товаров:    {len(products)} (в наличии {in_stock}, нет {len(products) - in_stock})")

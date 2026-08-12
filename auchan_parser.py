@@ -18,6 +18,7 @@ HTML-страницы сайта закрыты Qrator, но API отдаётс�
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import sys
 import threading
@@ -197,6 +198,37 @@ def dump_json(payload: Any) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
+def write_json(path: Path, payload: Any) -> None:
+    """Записать JSON, сжимая gzip'ом, если путь оканчивается на .gz.
+
+    Сжатие даёт восьмикратную экономию (62 МБ → 7.6 МБ на пищевом срезе)
+    и ничего не стоит: gzip.open читается так же прозрачно.
+    """
+    data = dump_json(payload)
+    if path.suffix == ".gz":
+        with gzip.open(path, "wt", encoding="utf-8", compresslevel=6) as f:
+            f.write(data)
+    else:
+        path.write_text(data, encoding="utf-8")
+
+
+def read_json(path: Path) -> Any:
+    """Прочитать выгрузку — сжатую или обычную, чтобы старые файлы тоже открывались."""
+    if Path(path).suffix == ".gz":
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            return json.load(f)
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def category_files(directory: Path) -> list[Path]:
+    """Файлы категорий в папке выгрузки: и сжатые, и старые несжатые."""
+    return sorted(
+        p
+        for p in directory.glob("*.json*")
+        if p.suffix in (".json", ".gz") and not p.name.startswith("_manifest")
+    )
+
+
 def build_record(detail: dict, reviews: list[dict]) -> dict:
     """Собирает плоскую и удобную для анализа запись из ответа API."""
     chars = characteristics_to_dict(detail.get("characteristics") or [])
@@ -365,7 +397,7 @@ def main() -> int:
 
     records.sort(key=lambda r: (not r["in_stock"], r["title"] or ""))
 
-    out_path = Path(args.output or f"output/{args.category}_simferopol.json")
+    out_path = Path(args.output or f"output/{args.category}_simferopol.json.gz")
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     in_stock = sum(1 for r in records if r["in_stock"])
@@ -385,7 +417,7 @@ def main() -> int:
         },
         "products": records,
     }
-    out_path.write_text(dump_json(payload), encoding="utf-8")
+    write_json(out_path, payload)
 
     print(f"\nГотово за {time.time() - started:.0f} с")
     print(f"  товаров:      {len(records)} (в наличии {in_stock}, нет {len(records) - in_stock})")

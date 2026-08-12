@@ -43,7 +43,9 @@ from auchan_parser import (
     WORKERS,
     AuchanAPI,
     build_record,
-    dump_json,
+    category_files,
+    read_json,
+    write_json,
 )
 
 # Категории с hiddenMenu=False — это ровно меню каталога на сайте (49 корневых).
@@ -97,7 +99,7 @@ def resolve_out_dir(expected: int, explicit: str | None) -> Path:
         reverse=True,
     )
     for candidate in dated:
-        done = len([f for f in candidate.glob("*.json") if f.name != "_manifest.json"])
+        done = len(category_files(candidate))
         if 0 < done < expected:
             print(f"Найден незавершённый прогон в {candidate} ({done} из {expected}) — продолжаю.")
             return candidate
@@ -188,14 +190,16 @@ def write_by_category(
         code = node.get("code")
         if not code:
             continue
-        out_path = out_dir / f"{safe_name(code)}.json"
+        out_path = out_dir / f"{safe_name(code)}.json.gz"
         label = " / ".join(path)
 
-        if out_path.exists() and resume:
+        # прогон, начатый до включения сжатия, продолжается без перезапроса
+        done_path = next((p for p in (out_path, out_path.with_suffix("")) if p.exists()), None)
+        if done_path and resume:
             skipped += 1
             try:
-                existing = json.loads(out_path.read_text(encoding="utf-8"))
-                manifest.append(existing["meta"] | {"file": out_path.name})
+                existing = read_json(done_path)
+                manifest.append(existing["meta"] | {"file": done_path.name})
                 total_products += existing["meta"]["products_total"]
             except Exception:
                 pass
@@ -223,7 +227,7 @@ def write_by_category(
             "reviews_total": sum(len(r.get("reviews") or []) for r in records),
             "failed_codes": failed,
         }
-        out_path.write_text(dump_json({"meta": meta, "products": records}), encoding="utf-8")
+        write_json(out_path, {"meta": meta, "products": records})
 
         manifest.append(meta | {"file": out_path.name})
         total_products += len(records)
@@ -235,20 +239,19 @@ def write_by_category(
             f"| осталось ~{eta / 60:.0f} мин"
         )
 
-    (out_dir / "_manifest.json").write_text(
-        dump_json(
-            {
-                "generated_at": datetime.now(timezone.utc).astimezone().isoformat(),
-                "merchant_id": MERCHANT_ID,
-                "merchant_name": MERCHANT_NAME,
-                "with_reviews": with_reviews,
-                "categories_total": len(manifest),
-                "unique_products": len(collector.cache),
-                "product_rows_total": total_products,
-                "categories": manifest,
-            }
-        ),
-        encoding="utf-8",
+    # манифест намеренно не сжимается — он маленький, и в него удобно заглянуть
+    write_json(
+        out_dir / "_manifest.json",
+        {
+            "generated_at": datetime.now(timezone.utc).astimezone().isoformat(),
+            "merchant_id": MERCHANT_ID,
+            "merchant_name": MERCHANT_NAME,
+            "with_reviews": with_reviews,
+            "categories_total": len(manifest),
+            "unique_products": len(collector.cache),
+            "product_rows_total": total_products,
+            "categories": manifest,
+        },
     )
 
     print(f"\nГотово за {(time.time() - started) / 60:.1f} мин")
