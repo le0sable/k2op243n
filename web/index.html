@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d6b4f">
+<title>Корзинка — помощник покупок</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="top">
+  <div id="search-wrap">
+    <input id="q" type="search" placeholder="Найти товар…" autocomplete="off">
+  </div>
+  <div id="filters">
+    <select id="cat"><option value="">Все категории</option></select>
+    <select id="sort">
+      <option value="rel">Сначала выгодные</option>
+      <option value="pk">Дешевле за кг/л</option>
+      <option value="s">Чище состав</option>
+      <option value="v">Качество за рубль</option>
+      <option value="r">По рейтингу</option>
+      <option value="p">Дешевле</option>
+    </select>
+    <label id="stock-l"><input type="checkbox" id="stock" checked> в наличии</label>
+  </div>
+</header>
+
+<main id="list"></main>
+<div id="empty" hidden>Ничего не найдено</div>
+
+<nav id="tabs">
+  <button data-tab="search" class="active">🔍<span>Поиск</span></button>
+  <button data-tab="deals">🔥<span>Скидки</span></button>
+  <button data-tab="cart">🧺<span>Список <b id="cart-n" hidden></b></span></button>
+  <button data-tab="prefs">⚙️<span>Моё</span></button>
+</nav>
+
+<section id="cart-view" class="page" hidden>
+  <h2>Список покупок</h2>
+  <div id="budget-row">
+    <label>Бюджет: <input id="budget" type="number" inputmode="numeric" placeholder="₽"></label>
+    <div id="cart-total"></div>
+  </div>
+  <div id="cart-items"></div>
+  <button id="cart-clear" class="ghost">Очистить список</button>
+</section>
+
+<section id="prefs-view" class="page" hidden>
+  <h2>Чёрный список</h2>
+  <p class="hint">Скрытые товары и бренды не показываются в поиске и скидках.</p>
+  <h3>Бренды</h3><div id="bl-brands"></div>
+  <h3>Товары</h3><div id="bl-products"></div>
+  <h2>Любимое</h2><div id="fav-items"></div>
+  <p class="hint" id="meta-info"></p>
+</section>
+
+<div id="card-overlay" hidden><div id="card"></div></div>
+<script src="app.js"></script>
+</body>
+</html>

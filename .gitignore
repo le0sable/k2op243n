@@ -4,6 +4,9 @@ output/
 # Логи прогонов
 *.log
 
+# Данные сайта — пересобираются build_site_data.py, публикуются в gh-pages
+web/data/
+
 # Python
 __pycache__/
 *.py[cod]
