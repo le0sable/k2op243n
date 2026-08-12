@@ -15,9 +15,6 @@
 
 ```bash
 python auchan_parser.py moloko                     # одна категория
-python parse_all_categories.py                     # всё товарное дерево
-python parse_food_categories.py                    # пищевой срез по категориям
-python parse_food.py                               # пищевой срез одним файлом
 python parse_food.py --from-dir output/ГГГГ-ММ-ДД  # пищевой срез из готовой выгрузки
 python parse_all_categories.py --reviews           # + тексты отзывов (долго и тяжело)
 python export_parquet.py output/food-ГГГГ-ММ-ДД    # Parquet для анализа
@@ -53,6 +50,12 @@ python export_parquet.py output/food-ГГГГ-ММ-ДД    # Parquet для ан
 По каждому товару собирается всё, что отдаёт API: цены и скидки, наличие, бренд,
 состав, масса, КБЖУ, все характеристики, описание, изображения, кэшбэк, рейтинг
 с разбивкой по звёздам и при необходимости сами отзывы.
+
+## Зачем это всё
+
+Проект нацелен на **наблюдение во времени**, а не разовый срез. Пищевые
+категории собираются ежедневно, весь каталог — раз в неделю. Что с этими
+данными делать — в [docs/analysis-ideas.md](docs/analysis-ideas.md).
 
 ## Документация
 
