@@ -25,7 +25,11 @@ button,input,select{font-family:inherit;touch-action:manipulation}
 .num,.price,.total,.score-n,.n,.sum{font-variant-numeric:tabular-nums}
 
 /* ---------- шапка ---------- */
-#top{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px var(--pad) 0}
+#top{position:sticky;top:0;z-index:5;background:var(--bg);padding:8px var(--pad) 6px}
+/* волосок под залипшей шапкой, чтобы лента не «въезжала» в фильтры */
+#top::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;
+  background:var(--line);opacity:0;transition:opacity .15s}
+#top.stuck::after{opacity:1}
 .cat-head{display:flex;align-items:center;gap:4px;padding:2px 0 8px;margin-left:-8px}
 .cat-head h1{font-size:20px;font-weight:800;margin:0;letter-spacing:-.01em;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -41,19 +45,32 @@ button,input,select{font-family:inherit;touch-action:manipulation}
 #q:focus{outline:2px solid rgba(101,92,78,.25);outline-offset:-2px}
 #q-clear{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:32px;height:32px;
   border:0;background:none;color:var(--muted);font-size:14px;cursor:pointer}
-.chips{display:flex;gap:8px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none;
+.chips{display:flex;gap:8px;overflow-x:auto;padding:10px 20px 2px 0;scrollbar-width:none;
   /* намёк на горизонтальный скролл: правый край растворяется */
-  mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent);
-  -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 28px),transparent)}
+  mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent calc(100% - 4px));
+  -webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent calc(100% - 4px))}
 .chips::-webkit-scrollbar{display:none}
-.chip{flex:0 0 auto;border:0;background:var(--chip);color:var(--ink);
-  border-radius:var(--r);padding:8px 12px;font-size:13px;font-weight:400;white-space:nowrap;cursor:pointer}
-.chip.on{background:var(--chip-on);color:#fff;font-weight:500}
-.toolbar{display:flex;gap:8px;align-items:center;padding:8px 0}
-#sort{flex:1;min-width:0;padding:8px 12px;border:0;border-radius:var(--r);
-  background:var(--chip);color:var(--ink);font-size:13px}
-.chk{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink2);white-space:nowrap}
-.chk input{width:18px;height:18px;accent-color:var(--ink)}
+.chip{flex:0 0 auto;display:inline-flex;align-items:center;min-height:40px;max-width:70vw;
+  border:0;background:var(--chip);color:var(--ink);
+  border-radius:var(--r);padding:0 14px;font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer;
+  overflow:hidden;text-overflow:ellipsis}
+.chip.on{background:var(--chip-on);color:#fff}
+.toolbar{display:flex;gap:8px;align-items:center;padding:10px 0 2px}
+#sort{flex:1;min-width:0;height:40px;padding:0 34px 0 14px;border:0;border-radius:var(--r);
+  background:var(--chip);color:var(--ink);font-size:13px;font-weight:500;appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23212120' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;background-size:16px 16px}
+/* «в наличии» — чип-переключатель вместо системного чекбокса */
+.chk{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;
+  border-radius:var(--r);background:var(--chip);color:var(--ink);
+  font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer;user-select:none}
+.chk input{position:absolute;opacity:0;width:0;height:0;margin:0}
+.chk::before{content:"";width:16px;height:16px;border-radius:5px;flex:0 0 auto;
+  background:#FFFFFF;box-shadow:inset 0 0 0 1.5px rgba(101,92,78,.28);
+  background-position:center;background-repeat:no-repeat;background-size:12px 12px}
+.chk:has(input:checked){background:var(--chip-on);color:#fff}
+.chk:has(input:checked)::before{background-color:#FFFFFF;box-shadow:none;
+  background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23212120' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 12.5 5 5L19 7'/%3E%3C/svg%3E")}
 
 main,.page{padding:12px calc(var(--pad) + env(safe-area-inset-left)) calc(88px + env(safe-area-inset-bottom))}
 h2{font-size:20px;font-weight:800;line-height:1.25;margin:0 0 12px;letter-spacing:-.01em}
@@ -64,80 +81,97 @@ h3{font-size:14px;font-weight:700;margin:0 0 6px}
   border-radius:var(--r);padding:10px 12px}
 
 /* ---------- плитки категорий ---------- */
-.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;grid-auto-flow:row dense}
-.tile{position:relative;aspect-ratio:1/1;border-radius:var(--r);border:0;overflow:hidden;
-  padding:10px;text-align:left;cursor:pointer;color:var(--ink);
+/* строки одной высоты: узкая и широкая плитки выравниваются по базовой сетке */
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;
+  grid-auto-flow:row dense;grid-auto-rows:114px}
+.tile{position:relative;border-radius:var(--r);border:0;overflow:hidden;
+  padding:10px 10px 8px;text-align:left;cursor:pointer;color:var(--ink);
   display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start}
-.tile.wide{grid-column:span 2;aspect-ratio:2/1}
+.tile.wide{grid-column:span 2}
 .tile:active{filter:brightness(.96)}
-.tile .tt{position:relative;z-index:1;width:100%;padding-right:26px;font-size:13px;font-weight:600;
-  line-height:1.2;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.tile.wide .tt{font-size:14px;width:64%;padding-right:0}
-/* число товаров — только на широких плитках, на узких не хватает места под картинкой */
-.tile .tn{position:relative;z-index:1;display:none;font-size:11px;font-weight:400;
-  color:var(--muted);margin-top:2px}
-.tile.wide .tn{display:block}
-.tile .tim{position:absolute;right:4px;bottom:4px;width:50px;height:50px;object-fit:contain;
-  mix-blend-mode:multiply}
-.tile.wide .tim{width:64px;height:64px;right:10px;bottom:8px}
+.tile .tt{position:relative;z-index:1;width:100%;padding-right:30px;font-size:13px;font-weight:600;
+  line-height:1.21;letter-spacing:-.005em;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.tile.wide .tt{font-size:15px;width:62%;padding-right:0;-webkit-line-clamp:2}
+/* число товаров прижато к низу — одинаковая базовая линия во всех плитках */
+.tile .tn{position:relative;z-index:1;margin-top:auto;padding-top:4px;
+  font-size:11px;font-weight:500;color:rgba(33,32,31,.42)}
+.tile.deals .tt,.tile.deals .tn{color:var(--deal)}
+.tile .tim{position:absolute;right:6px;bottom:6px;width:56px;height:56px;object-fit:contain;
+  object-position:right bottom;mix-blend-mode:multiply}
+.tile.wide .tim{width:76px;height:76px;right:12px;bottom:8px}
 
 /* ---------- сетка карточек 2 колонки ---------- */
 /* карточка без рамки: разделение сеткой и отступами, как у Лавки */
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 8px}
-.card{background:none;border:0;border-radius:0;padding:0;
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 8px;align-items:stretch}
+/* карточка — колонка на всю высоту строки, кнопка всегда внизу:
+   так цены и кнопки соседних карточек стоят на одной линии */
+.card{background:none;border:0;border-radius:0;padding:0;height:100%;
   display:flex;flex-direction:column;cursor:pointer;min-width:0}
 .card:active{opacity:.7}
+/* гасим само фото, а не всю плашку: сердечко и метка должны остаться контрастными */
+.card.oos .ph-wrap img,.card.oos .ph-wrap .ph{opacity:.42}
+.card.oos .name,.card.oos .price{color:var(--ink2)}
 /* фото — квадратная чисто-белая плашка с резкими краями */
 .ph-wrap{position:relative;width:100%;aspect-ratio:1/1;border-radius:0;
   background:#FFFFFF;overflow:hidden;flex:0 0 auto}
 .ph-wrap img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+/* заглушка показывается только когда картинки нет — иначе серая подложка
+   торчала по бокам любого «неквадратного» фото */
 .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   background:var(--sunken)}
+.ph-wrap.ok .ph{display:none}
 .ph svg{width:38%;height:38%;fill:none;stroke:var(--muted);stroke-width:1.5;
   stroke-linejoin:round;stroke-linecap:round}
-.heart{position:absolute;right:0;top:0;width:32px;height:32px;border:0;border-radius:50%;
-  background:transparent;color:var(--muted);font-size:17px;line-height:1;cursor:pointer;padding:0}
-.heart.on{color:var(--danger)}
-.badge-abs{position:absolute;left:0;bottom:0}
+.heart{position:absolute;right:0;top:0;width:40px;height:40px;border:0;border-radius:50%;
+  background:transparent;color:#B9B7B2;font-size:19px;line-height:40px;cursor:pointer;padding:0;
+  text-align:center;text-shadow:0 0 6px #fff,0 0 3px #fff}
+.heart.on{color:var(--danger);text-shadow:none}
+.badge-abs{position:absolute;left:4px;bottom:4px}
+.oos-abs{position:absolute;left:4px;bottom:4px;background:rgba(33,32,31,.72);color:#fff;
+  border-radius:var(--r-s);padding:3px 7px;font-size:11px;font-weight:600}
 
-.rate{display:flex;align-items:center;gap:3px;font-size:12px;color:var(--muted);margin-top:8px;min-height:16px}
+.rate{display:flex;align-items:center;gap:3px;font-size:12px;color:var(--muted);margin-top:10px;min-height:16px}
 .rate .st{color:var(--star)}
 .name{font-size:13px;font-weight:400;line-height:1.3;color:var(--ink);margin-top:2px;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:34px}
-.price{font-size:16px;font-weight:700;color:var(--ink);margin-top:6px;line-height:1.15}
+.price{font-size:16px;font-weight:700;color:var(--ink);margin-top:8px;line-height:1.15;
+  display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
 .price.sale{color:var(--deal)}
-.price .old{font-size:14px;font-weight:400;color:var(--muted);text-decoration:line-through;margin-left:6px}
-.ppk{font-size:12px;font-weight:400;color:var(--muted);margin-top:2px;min-height:16px}
-.card .score{margin-top:6px}
-.card .act{margin-top:8px}
+.price .old{font-size:13px;font-weight:400;color:var(--muted);text-decoration:line-through}
+.ppk{font-size:12px;font-weight:400;color:var(--muted);margin-top:3px;min-height:16px}
+.score-row{min-height:24px;margin-top:6px;display:flex;align-items:center}
+.card .act{margin-top:auto;padding-top:10px}
 
 /* бейджи */
-.badge{display:inline-block;border-radius:2px;padding:4px 6px;font-size:11px;font-weight:700;line-height:1.1}
+.badge{display:inline-block;border-radius:var(--r-s);padding:4px 7px;font-size:11px;font-weight:700;line-height:1.1}
 .badge.good{background:var(--deal);color:#fff}
 .badge.fake{background:var(--warn-soft);color:var(--warn)}
-.badge.small{background:var(--sunken);color:var(--ink2)}
-.badge.flag{background:var(--danger-soft);color:var(--bad);border-radius:var(--r-s)}
+.badge.small{background:rgba(33,32,31,.72);color:#fff}
+.badge.flag{background:var(--danger-soft);color:var(--bad);border-radius:var(--r-s);font-weight:600}
 
-/* шкала состава */
-.score{display:inline-flex;align-items:center;gap:6px}
-.score .track{width:38px;height:5px;border-radius:3px;background:var(--sunken);overflow:hidden}
-.score .fill{height:100%;border-radius:3px}
-.score-n{font-size:12px;font-weight:700;color:var(--ink2)}
+/* оценка состава — компактная пилюля вместо крошечной шкалы с висящей цифрой */
+.score{display:inline-flex;align-items:center;gap:4px;border-radius:var(--r-s);
+  padding:3px 8px;font-size:11px;font-weight:700;line-height:1.2;white-space:nowrap}
+.score .lbl{font-weight:500;opacity:.75}
+.score.good{background:var(--accent-soft);color:var(--accent-ink)}
+.score.mid{background:var(--warn-soft);color:var(--warn)}
+.score.bad{background:var(--danger-soft);color:var(--bad)}
 .s-good{background:var(--accent)} .s-mid{background:var(--warn)} .s-bad{background:var(--bad)}
 .c-good{color:var(--accent-ink)} .c-mid{color:var(--warn)} .c-bad{color:var(--bad)}
 
 /* кнопка «в список» / степпер */
 .act{width:100%}
-.add{width:100%;min-height:36px;border:0;border-radius:var(--r);background:var(--chip);
+.add{width:100%;min-height:40px;border:0;border-radius:var(--r);background:var(--chip);
   color:var(--ink);font-size:13px;font-weight:600;cursor:pointer}
 .add:active{filter:brightness(.95)}
 .qty{display:flex;align-items:center;justify-content:space-between;gap:4px;width:100%;
-  background:var(--chip);border-radius:var(--r);min-height:36px;padding:0 2px}
-.qty button{width:34px;height:34px;border-radius:var(--r);border:0;background:transparent;
+  background:var(--chip);border-radius:var(--r);min-height:40px;padding:0 2px}
+.qty button{width:38px;height:38px;border-radius:var(--r);border:0;background:transparent;
   color:var(--ink);font-size:18px;font-weight:700;line-height:1;cursor:pointer;padding:0}
 .qty button:active{background:rgba(101,92,78,.12)}
 .qty .n{flex:1;text-align:center;font-size:14px;font-weight:700;color:var(--ink)}
-.qty.compact{width:auto;min-width:104px}
+.qty.compact{width:auto;min-width:112px}
 
 /* скелетоны */
 .sk{background:none;border:0;border-radius:0;padding:0}
@@ -145,11 +179,13 @@ h3{font-size:14px;font-weight:700;margin:0 0 6px}
   background-image:linear-gradient(90deg,transparent,var(--line),transparent);
   background-size:200% 100%;animation:sh 1.2s linear infinite}
 .sk .b{width:100%;aspect-ratio:1/1;border-radius:0}
-.sk .l1{height:12px;width:80%;margin:8px 0 6px} .sk .l2{height:16px;width:45%}
+.sk .l1{height:12px;width:86%;margin:12px 0 6px} .sk .l3{height:12px;width:56%;margin-bottom:10px}
+.sk .l2{height:16px;width:45%}
 @keyframes sh{0%{background-position:120% 0}100%{background-position:-120% 0}}
 
 /* пустые состояния */
-.empty{text-align:center;padding:40px 20px;grid-column:1/-1}
+.empty{text-align:center;padding:48px 20px;grid-column:1/-1}
+.empty .ghost{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
 .empty svg{width:44px;height:44px;fill:none;stroke:var(--muted);stroke-width:1.5;stroke-linecap:round}
 .empty h3{font-size:15px;font-weight:700;color:var(--ink);margin:12px 0 4px}
 .empty p{font-size:13px;color:var(--ink2);margin:0 0 16px}
@@ -175,46 +211,64 @@ h3{font-size:14px;font-weight:700;margin:0 0 6px}
 #card{background:#FFFFFF;border-radius:16px 16px 0 0;width:100%;max-width:520px;
   max-height:92vh;display:flex;flex-direction:column;animation:up .2s ease-out}
 @keyframes up{from{transform:translateY(24px)}to{transform:none}}
-.handle-row{position:relative;padding:8px 12px 0;flex:0 0 auto}
-.handle{width:36px;height:4px;border-radius:2px;background:var(--line);margin:0 auto}
-.dots{position:absolute;right:6px;top:2px;width:40px;height:40px;border:0;background:none;
-  color:var(--ink2);font-size:16px;cursor:pointer;border-radius:50%}
-.dots:active{background:var(--chip)}
-#card-body{overflow-y:auto;padding:8px 16px 16px;-webkit-overflow-scrolling:touch}
-#card h2{font-size:16px;font-weight:700;line-height:1.3;margin:12px 0 4px}
-.ph-wrap.c-photo{aspect-ratio:auto;height:190px}
-.c-sub{font-size:12px;color:var(--muted);margin-bottom:10px}
-.price-row{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;flex-wrap:wrap}
-.price-now{font-size:24px;font-weight:800;line-height:1.1}
+/* шапка шторки — своя высота под кнопку закрытия, иначе ✕ ложился на фото */
+.handle-row{position:relative;height:44px;padding:8px 8px 0;flex:0 0 auto}
+.handle{width:36px;height:4px;border-radius:2px;background:#DCDAD5;margin:0 auto}
+.dots{position:absolute;right:8px;top:2px;width:40px;height:40px;border:0;background:var(--chip);
+  color:var(--ink);font-size:15px;cursor:pointer;border-radius:50%;display:flex;
+  align-items:center;justify-content:center}
+.dots:active{filter:brightness(.92)}
+#card-body{overflow-y:auto;overscroll-behavior:contain;padding:0 16px 20px;-webkit-overflow-scrolling:touch}
+#card h2{font-size:18px;font-weight:700;line-height:1.28;margin:14px 0 4px;letter-spacing:-.01em}
+.ph-wrap.c-photo{aspect-ratio:auto;height:200px}
+.c-sub{font-size:12px;color:var(--ink2);margin-bottom:12px}
+.price-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.price-now{font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.02em}
+.price-now.sale{color:var(--deal)}
 .price-old{font-size:14px;color:var(--muted);text-decoration:line-through}
-.blk{background:var(--sunken);border:0;border-radius:var(--r);padding:12px;margin-bottom:8px}
+.blk{background:var(--sunken);border:0;border-radius:var(--r);padding:14px;margin-bottom:10px}
 .score-big .top{display:flex;align-items:center;gap:12px}
-.score-big .n{font-size:20px;font-weight:800}
-.score-big .track{flex:1;height:20px;border-radius:6px;background:#fff;overflow:hidden}
-.score-big .fill{height:100%;border-radius:6px}
-.e-list{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
-.e{border-radius:var(--r-s);padding:3px 8px;font-size:11px;font-weight:600}
+.score-big .n{font-size:22px;font-weight:800;min-width:34px}
+.score-big .track{flex:1;height:10px;border-radius:5px;background:#fff;overflow:hidden}
+.score-big .fill{height:100%;border-radius:5px;min-width:6px}
+.score-big .hint{color:var(--ink2)}
+/* предупреждение о наличии — отдельной полосой, а не мелкой плиткой среди цифр */
+.oos-banner{display:flex;align-items:center;gap:10px;background:var(--danger-soft);color:var(--bad);
+  border-radius:var(--r);padding:12px 14px;margin-bottom:10px;font-size:13px;font-weight:600}
+.oos-banner svg{width:20px;height:20px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round}
+.e-list{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 12px}
+.e{border-radius:var(--r-s);padding:4px 8px;font-size:11px;font-weight:600}
+.e.more-e{background:var(--chip);color:var(--ink2);cursor:pointer;border:0;font-family:inherit}
 .e.h0{background:var(--accent-soft);color:var(--accent-ink)}
 .e.h1{background:var(--sunken);color:var(--ink2)}
 .e.h2{background:var(--warn-soft);color:var(--warn)}
 .e.h3{background:var(--danger-soft);color:var(--danger)}
-.spark{width:100%;height:64px}
-.kvs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-.kv{flex:1 1 45%;background:var(--sunken);border:0;border-radius:var(--r);
-  padding:10px 12px;font-size:12px;color:var(--muted)}
-.kv b{display:block;color:var(--ink);font-size:14px;font-weight:700;margin-top:2px;overflow-wrap:anywhere}
-.comp{font-size:13px;color:var(--ink2)}
+.spark{display:block;width:100%;height:70px;margin-top:4px}
+.spark-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.spark-h .rng{font-size:12px;color:var(--ink2);font-weight:500}
+.kvs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px}
+.kv{background:var(--sunken);border:0;border-radius:var(--r);
+  padding:11px 13px;font-size:12px;color:var(--ink2)}
+.kv.wide{grid-column:1/-1}
+.kvs .kv:last-child:nth-child(odd){grid-column:1/-1}
+.kv b{display:block;color:var(--ink);font-size:14px;font-weight:700;margin-top:3px;overflow-wrap:anywhere}
+.comp{font-size:13px;line-height:1.45;color:var(--ink2)}
 .comp .txt{overflow:hidden}
 .comp .txt.clip{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .comp .more{border:0;background:none;color:var(--ink);font-size:13px;font-weight:600;
   padding:6px 0 0;cursor:pointer;text-decoration:underline}
-.sec-h{font-size:14px;font-weight:700;margin:16px 0 8px}
-.sim{display:flex;gap:12px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.sec-h{font-size:15px;font-weight:700;margin:20px 0 10px;letter-spacing:-.01em}
+/* полоса похожих идёт «в край» шторки, чтобы обрез был осмысленным */
+.sim{display:flex;gap:12px;overflow-x:auto;padding:0 16px 4px;margin:0 -16px;scrollbar-width:none}
 .sim::-webkit-scrollbar{display:none}
-.sim .s-card{flex:0 0 115px;background:none;border:0;border-radius:0;padding:0;cursor:pointer}
+.sim .s-card{flex:0 0 118px;background:none;border:0;border-radius:0;padding:0;cursor:pointer;
+  display:flex;flex-direction:column}
 .sim .ph-wrap{aspect-ratio:1/1}
-.sim .st{font-size:13px;line-height:1.3;margin:6px 0 4px;height:34px;overflow:hidden}
-.sim .sp{font-size:15px;font-weight:700}
+.sim .st{font-size:12px;line-height:1.3;margin:8px 0 4px;height:31px;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.sim .sp{font-size:15px;font-weight:700;margin-top:auto}
+.sim .sp .old{font-size:12px;font-weight:400;color:var(--muted);text-decoration:line-through;margin-left:5px}
 
 /* явные строки-действия «скрыть» */
 .rowbtn{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;text-align:left;
@@ -241,42 +295,58 @@ h3{font-size:14px;font-weight:700;margin:0 0 6px}
   padding:14px;margin-bottom:16px}
 .budget-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .bl{font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:8px}
-#budget{width:88px;padding:8px 10px;border:0;border-radius:var(--r);
-  background:#FFFFFF;color:var(--ink);font-size:16px}
+/* поле бюджета: рубль показан всегда, поэтому пустое поле не выглядит поломанным */
+.bfield{position:relative;display:inline-flex;align-items:center}
+#budget{width:104px;height:40px;padding:0 26px 0 12px;border:0;border-radius:var(--r);
+  background:#FFFFFF;color:var(--ink);font-size:16px;font-weight:600;appearance:none}
+#budget::-webkit-outer-spin-button,#budget::-webkit-inner-spin-button{appearance:none;margin:0}
+.bfield::after{content:"₽";position:absolute;right:11px;color:var(--muted);font-size:14px;pointer-events:none}
 .total{font-size:18px;font-weight:800}
 .total.over{color:var(--danger)}
-.bar-track{height:8px;border-radius:4px;background:#FFFFFF;overflow:hidden;margin:10px 0 6px}
-.bar-fill{height:100%;width:0;border-radius:4px;background:var(--accent);transition:width .2s}
+.bar-track{height:8px;border-radius:4px;background:#FFFFFF;overflow:hidden;margin:12px 0 8px}
+.bar-fill{height:100%;width:0;border-radius:4px;background:var(--accent);transition:width .25s}
 .bar-fill.warn{background:var(--warn)} .bar-fill.over{background:var(--danger)}
+.budget-card .hint.over{color:var(--danger);font-weight:600}
 .citem{display:grid;grid-template-columns:56px 1fr;gap:12px;align-items:center;
   background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;
-  padding:10px 0;margin-bottom:0}
-.citem .ph-wrap{width:56px;height:56px;aspect-ratio:auto}
+  padding:12px 0;margin-bottom:0}
+.citem:last-child{border-bottom:0}
+.citem .ph-wrap{width:56px;height:56px;aspect-ratio:auto;border-radius:var(--r-s)}
+.citem.oos .ph-wrap img,.citem.oos .ph-wrap .ph{opacity:.42}
 .citem .ti{font-size:13px;font-weight:400;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;
   -webkit-box-orient:vertical;overflow:hidden}
-.citem .crow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}
-.citem .sum{font-weight:700;font-size:14px}
-.citem .oos{color:var(--danger);font-size:11px;font-weight:600}
+.citem .crow{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+.citem .cright{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.citem .sum{font-weight:700;font-size:15px;line-height:1.2}
+.citem .oos{color:var(--bad);font-size:11px;font-weight:600;line-height:1.2}
 .ghost{border:0;border-radius:var(--r);padding:12px 16px;font-size:13px;font-weight:600;
   background:var(--chip);color:var(--ink);cursor:pointer}
 .ghost.wide{width:100%;margin-top:16px}
 .ghost.danger{color:#fff;background:var(--danger)}
 
 /* ---------- моё ---------- */
-.acc{width:100%;display:flex;justify-content:space-between;align-items:center;min-height:48px;
+.acc{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:52px;
   border:0;border-radius:var(--r);background:var(--sunken);color:var(--ink);
-  padding:12px 14px;margin:8px 0;font-size:14px;font-weight:600;cursor:pointer}
-.acc-x{font-size:13px;font-weight:500;color:var(--muted)}
-.acc-body{padding:4px 0 8px}
-.bl-chip{display:inline-flex;gap:8px;align-items:center;background:var(--chip);
-  border:0;border-radius:var(--r);padding:6px 10px;margin:0 6px 6px 0;font-size:13px}
-.bl-chip button{min-width:24px;min-height:24px;border:0;background:none;color:var(--danger);cursor:pointer}
+  padding:12px 14px;margin:8px 0 0;font-size:14px;font-weight:600;cursor:pointer;text-align:left}
+.acc-x{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--ink2);white-space:nowrap}
+.acc-x::after{content:"";width:14px;height:14px;flex:0 0 auto;transition:transform .18s;
+  background:no-repeat center/14px url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235C5B58' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")}
+.acc[aria-expanded="true"] .acc-x::after{transform:rotate(180deg)}
+.acc-body{padding:10px 2px 2px}
+.bl-chip{display:inline-flex;gap:4px;align-items:center;background:var(--chip);
+  border:0;border-radius:var(--r);padding:0 4px 0 12px;min-height:36px;margin:0 6px 6px 0;font-size:13px}
+.bl-chip button{width:28px;height:28px;border-radius:50%;border:0;background:none;color:var(--ink2);
+  font-size:12px;line-height:1;cursor:pointer;padding:0}
 .mini-clear{border:0;background:none;color:var(--danger);font-size:13px;font-weight:600;
-  cursor:pointer;padding:4px 0}
+  cursor:pointer;padding:6px 0;display:inline-block;margin-top:2px}
+/* на серой плашке #999 читается плохо — подписи там темнее */
+.info-card .hint,.blk .hint,.budget-card .hint{color:var(--ink2)}
 .info-card{background:var(--sunken);border:0;border-radius:var(--r);
   padding:14px;margin-top:16px;display:grid;gap:8px}
 
 /* тост */
 .toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom));transform:translateX(-50%);
-  background:var(--ink);color:#fff;padding:10px 16px;border-radius:var(--r);font-size:13px;
-  z-index:40;max-width:88%;text-align:center}
+  background:var(--ink);color:#fff;padding:12px 18px;border-radius:var(--r);font-size:13px;font-weight:500;
+  z-index:40;max-width:88%;text-align:center;box-shadow:0 6px 20px rgba(33,32,31,.22);
+  animation:toast-in .18s ease-out}
+@keyframes toast-in{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}

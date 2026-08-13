@@ -31,7 +31,7 @@
       <option value="v">Качество за рубль</option>
       <option value="p">Дешевле</option>
     </select>
-    <label class="chk"><input type="checkbox" id="stock" checked><span>в наличии</span></label>
+    <label class="chk"><input type="checkbox" id="stock" checked><span>В наличии</span></label>
   </div>
 </header>
 
@@ -48,10 +48,10 @@
   <div class="budget-card">
     <div class="budget-row">
       <label class="bl">Бюджет
-        <input id="budget" type="number" inputmode="numeric" placeholder="₽"></label>
+        <span class="bfield"><input id="budget" type="number" inputmode="numeric" placeholder="—"></span></label>
       <div id="cart-total" class="total">Итого 0 ₽</div>
     </div>
-    <div class="bar-track"><div id="budget-bar" class="bar-fill"></div></div>
+    <div id="bar-track" class="bar-track" hidden><div id="budget-bar" class="bar-fill"></div></div>
     <p id="budget-hint" class="hint"></p>
   </div>
   <div id="cart-items"></div>

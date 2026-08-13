@@ -15,6 +15,14 @@ let tab = 'catalog', cat = '', sub = '', onlyDeals = false, curCode = null;
 const shardCache = {};
 
 const fmt = n => n == null || isNaN(n) ? '—' : (Math.round(n * 100) / 100).toLocaleString('ru-RU');
+/* «2026-08-12» → «12 августа»: ISO-дата в интерфейсе не читается */
+const MON = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+function fmtDate(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+  if (!m) return s || '';
+  return `${+m[3]} ${MON[+m[2] - 1]}`;
+}
 const esc = s => (s ?? '').toString().replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const qty = c => cart[String(c)] || 0;
 const isFav = c => fav.has(String(c));
@@ -25,6 +33,7 @@ const ICON_SEARCH = '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><pa
 const ICON_CART = '<svg viewBox="0 0 24 24"><path d="M4 8h16l-1.6 11H5.6L4 8ZM9 8V5a3 3 0 0 1 6 0v3"/></svg>';
 const ICON_HEART = '<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.6-7-9.2A4 4 0 0 1 12 8a4 4 0 0 1 7-2.8c0 4.6-7 14.8-7 14.8Z"/></svg>';
 const ICON_EYE = '<svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 20 20 4"/></svg>';
+const ICON_WARN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4v.2"/></svg>';
 
 /* пастельные фоны плиток разделов (палитра Лавки) */
 const TILE_BG = ['#E1F8FA', '#FFECB2', '#ECF5D3', '#FEF0D5', '#FFF6ED',
@@ -47,14 +56,15 @@ async function boot() {
   ROWS.forEach(r => BYCODE.set(String(r.c), r));
   buildTiles();
   renderHead();
-  $('#meta-info').textContent = `Срез: ${META.date} · ${fmt(META.products)} товаров · история ${META.days} дн.`;
+  $('#meta-info').textContent = `Данные от ${fmtDate(META.date)} · ${fmt(META.products)} товаров · история ${META.days} дн.`;
   render();
   updateCartBadge();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
 }
 
 function skeletons() {
-  $('#list').innerHTML = Array(6).fill('<div class="sk"><i class="b"></i><i class="l1"></i><i class="l2"></i></div>').join('');
+  $('#list').innerHTML = Array(6).fill(
+    '<div class="sk"><i class="b"></i><i class="l1"></i><i class="l3"></i><i class="l2"></i></div>').join('');
 }
 
 /* ---------- экран плиток разделов ---------- */
@@ -79,7 +89,7 @@ function buildTiles() {
 function tileHTML(t) {
   const img = t.im ? `<img class="tim" loading="lazy" src="${esc(t.im)}" alt="" onerror="this.style.display='none'">` : '';
   const attr = t.deals ? 'data-deals="1"' : `data-tile="${esc(t.name)}"`;
-  return `<button type="button" class="tile${t.wide ? ' wide' : ''}" ${attr}
+  return `<button type="button" class="tile${t.wide ? ' wide' : ''}${t.deals ? ' deals' : ''}" ${attr}
     style="background:${t.bg}"><span class="tt">${esc(t.name)}</span>
     <span class="tn">${fmt(t.n)}</span>${img}</button>`;
 }
@@ -87,7 +97,7 @@ function tileHTML(t) {
 function renderTiles() {
   const deals = ROWS.filter(r => visible(r) && r.st && isDeal(r));
   const dim = deals.slice().sort((a, b) => (b.rc || 0) - (a.rc || 0)).find(r => r.im);
-  const dealTile = tileHTML({ name: '🔥 Скидки', n: deals.length, im: dim ? dim.im : '', wide: true, bg: DEAL_BG, deals: 1 });
+  const dealTile = tileHTML({ name: 'Скидки', n: deals.length, im: dim ? dim.im : '', wide: true, bg: DEAL_BG, deals: 1 });
   $('#tiles').innerHTML = dealTile + TILES.map(tileHTML).join('');
 }
 
@@ -147,11 +157,26 @@ function filterRows() {
 }
 
 /* ---------- элементы ---------- */
+/* заглушка лежит под фото, но показывается только классом .noimg —
+   иначе её серый фон торчал по бокам вытянутых картинок */
 function photoHTML(r, extra, cls) {
   const ph = `<div class="ph">${ICON_BOX}</div>`;
-  const img = r.im ? `<img loading="lazy" src="${esc(r.im)}" alt="" onerror="this.style.display='none'">` : '';
+  // заглушка видна, пока фото грузится (и остаётся, если не загрузилось),
+  // но исчезает после load — иначе её серый фон торчал по бокам вытянутых картинок
+  const img = r.im ? `<img loading="lazy" src="${esc(r.im)}" alt="">` : '';
   return `<div class="ph-wrap ${cls || ''}">${ph}${img}${extra || ''}</div>`;
 }
+
+/* отметка «фото приехало» — снимает серую заглушку под картинкой */
+function markPhoto(img) {
+  if (!img.complete || !img.naturalWidth) return;
+  img.closest('.ph-wrap')?.classList.add('ok');
+}
+addEventListener('load', e => { if (e.target.tagName === 'IMG') markPhoto(e.target); }, true);
+addEventListener('error', e => { if (e.target.tagName === 'IMG') e.target.remove(); }, true);
+// картинки из кэша и lazy-загрузка могут завершиться без события в наш адрес —
+// фоновый досмотр раз в секунду, пока есть неотмеченные фото
+setInterval(() => $$('.ph-wrap:not(.ok) img').forEach(markPhoto), 1000);
 
 // один бейдж на карточку
 function dealBadge(r) {
@@ -167,8 +192,7 @@ function scoreCls(s) { return s >= 67 ? 'good' : s >= 34 ? 'mid' : 'bad'; }
 function scoreHTML(r) {
   if (r.s == null) return '';
   const s = Math.max(0, Math.min(100, Math.round(r.s))), k = scoreCls(s);
-  return `<span class="score"><span class="track"><i class="fill s-${k}" style="width:${s}%"></i></span>
-    <span class="score-n c-${k}">${s}</span></span>`;
+  return `<span class="score ${k}"><span class="lbl">состав</span>${s}</span>`;
 }
 
 /* кнопка «+ В список» превращается в степпер */
@@ -189,15 +213,17 @@ function rateHTML(r) {
 
 function itemHTML(r) {
   const b = dealBadge(r);
-  const heart = `<button type="button" class="heart${isFav(r.c) ? ' on' : ''}" data-fav="${esc(r.c)}" aria-label="Любимое">${isFav(r.c) ? '♥' : '♡'}</button>`
-    + (b ? `<span class="badge-abs">${b}</span>` : '');
-  return `<article class="card" data-c="${esc(r.c)}">
+  // на карточке либо бейдж выгоды, либо метка отсутствия — вместе они бессмысленны
+  const corner = !r.st ? '<span class="oos-abs">нет в наличии</span>'
+    : (b ? `<span class="badge-abs">${b}</span>` : '');
+  const heart = `<button type="button" class="heart${isFav(r.c) ? ' on' : ''}" data-fav="${esc(r.c)}" aria-label="Любимое">${isFav(r.c) ? '♥' : '♡'}</button>` + corner;
+  return `<article class="card${r.st ? '' : ' oos'}" data-c="${esc(r.c)}">
     ${photoHTML(r, heart)}
     ${rateHTML(r)}
     <div class="name">${esc(r.t)}</div>
-    <div class="price${r.op && r.op > r.p ? ' sale' : ''}">${fmt(r.p)} ₽${r.op && r.op > r.p ? `<span class="old">${fmt(r.op)} ₽</span>` : ''}</div>
+    <div class="price${r.op && r.op > r.p ? ' sale' : ''}"><span>${fmt(r.p)} ₽</span>${r.op && r.op > r.p ? `<span class="old">${fmt(r.op)} ₽</span>` : ''}</div>
     <div class="ppk">${r.pk ? `${fmt(r.pk)} ₽/${esc(r.un || 'кг')}` : ''}</div>
-    ${scoreHTML(r) ? `<div>${scoreHTML(r)}</div>` : ''}
+    <div class="score-row">${scoreHTML(r)}</div>
     <div class="act">${actHTML(r.c)}</div></article>`;
 }
 
@@ -233,7 +259,8 @@ function render() {
   if (onlyDeals) {
     const fake = ROWS.filter(r => visible(r) && r.d > 0 && (r.rel == null || r.rel >= -1)).length;
     $('#legend').hidden = false;
-    $('#legend').textContent = `Только скидки, подтверждённые историей цен · ${fmt(fake)} фейковых скрыто`;
+    $('#legend').textContent = 'Только скидки, подтверждённые историей цен'
+      + (fake ? ` · ${fmt(fake)} фейковых скрыто` : '');
   } else $('#legend').hidden = true;
 }
 function more() {
@@ -244,6 +271,8 @@ function more() {
 }
 addEventListener('scroll', () => {
   if (tab !== 'catalog') return;
+  // волосок под залипшей шапкой появляется только когда под неё что-то уехало
+  $('#top').classList.toggle('stuck', scrollY > 4 && !isRoot());
   if (innerHeight + scrollY > document.body.scrollHeight - 600) more();
 });
 
@@ -287,19 +316,24 @@ async function loadDetail(code) {
   return shardCache[shard][String(code)] || {};
 }
 
+/* график цены. Плоскую историю (2 точки или одна цена) не рисуем:
+   получался пустой серый блок с линией по нижнему краю и наехавшей подписью */
 function spark(hist) {
-  if (!hist || hist.length < 2) return '';
+  if (!hist || hist.length < 3) return '';
   const ps = hist.map(h => h[1]).filter(p => typeof p === 'number');
-  if (ps.length < 2) return '';
-  const min = Math.min(...ps), max = Math.max(...ps), pad = (max - min) || 1;
-  const W = 300, H = 56;
-  const pts = ps.map((p, i) => `${(i / (ps.length - 1) * (W - 10) + 5).toFixed(1)},${(H - 10 - (p - min) / pad * (H - 20)).toFixed(1)}`);
+  if (ps.length < 3) return '';
+  const min = Math.min(...ps), max = Math.max(...ps);
+  if (max - min < 0.01) return '';
+  const pad = max - min;
+  const W = 300, H = 60, T = 8, B = 10;
+  const pts = ps.map((p, i) => `${(i / (ps.length - 1) * (W - 12) + 6).toFixed(1)},${(H - B - (p - min) / pad * (H - T - B)).toFixed(1)}`);
   const last = pts.at(-1).split(',');
-  return `<div class="blk"><div class="sec-h" style="margin:0 0 4px">Цена за ${ps.length} дн.</div>
+  return `<div class="blk"><div class="spark-h"><span class="sec-h" style="margin:0">Цена за ${ps.length} дн.</span>
+      <span class="rng">${fmt(min)} – ${fmt(max)} ₽</span></div>
     <svg class="spark" viewBox="0 0 ${W} ${H}">
-    <polyline points="${pts.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2"/>
-    <circle cx="${last[0]}" cy="${last[1]}" r="3.5" fill="var(--accent)"/>
-    <text x="5" y="${H - 1}" font-size="9" fill="var(--muted)">${fmt(min)}–${fmt(max)} ₽</text></svg></div>`;
+    <polyline points="${pts.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2"
+      stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="3.5" fill="var(--accent)"/></svg></div>`;
 }
 
 function similar(r) {
@@ -309,6 +343,23 @@ function similar(r) {
 
 const FLAGS = { sugar_first: 'сахар в начале состава', palm: 'пальмовое масло', flavor_enh: 'усилители вкуса', sweetener: 'подсластители' };
 const E_NAMES = { 0: 'безопасная', 1: 'нейтральная', 2: 'сомнительная', 3: 'нежелательная' };
+
+/* Е-добавки: сначала самые нежелательные, длинный хвост прячем под «ещё N»,
+   иначе карточка превращалась в стену из полутора десятков одинаковых плашек */
+const E_SHOWN = 6;
+function eListHTML(d) {
+  if (!d.e || !d.e.length) return '';
+  const harm = c => (d.eh && d.eh[c]) ?? 0;
+  const all = d.e.slice().sort((a, b) => harm(b) - harm(a) || String(a).localeCompare(String(b)));
+  const chip = c => `<span class="e h${harm(c)}" title="${E_NAMES[harm(c)]}">Е${esc(c)} · ${E_NAMES[harm(c)]}</span>`;
+  const head = all.slice(0, E_SHOWN).map(chip).join('');
+  const tail = all.slice(E_SHOWN);
+  const bad = all.filter(c => harm(c) >= 2).length;
+  return `<div class="e-list" id="e-list" data-open="0">${head}
+    ${tail.length ? `<span class="e more-e" id="e-more" role="button" tabindex="0">ещё ${tail.length}</span>
+      <span hidden id="e-rest">${tail.map(chip).join('')}</span>` : ''}
+    </div>${bad ? `<p class="hint" style="margin:-4px 0 12px">Сомнительных и нежелательных добавок: ${bad} из ${all.length}</p>` : ''}`;
+}
 
 function renderFoot() {
   const r = BYCODE.get(String(curCode));
@@ -340,32 +391,30 @@ async function openCard(code) {
     ${photoHTML(r, '', 'c-photo')}
     <h2>${esc(r.t)}</h2>
     <div class="c-sub">${[r.b, d.country, r.k2 || r.k1].filter(Boolean).map(esc).join(' · ') || '—'}</div>
-    <div class="price-row"><span class="price-now">${fmt(r.p)} ₽</span>
+    <div class="price-row"><span class="price-now${r.op && r.op > r.p ? ' sale' : ''}">${fmt(r.p)} ₽</span>
       ${r.op && r.op > r.p ? `<span class="price-old">${fmt(r.op)} ₽</span>` : ''}
       ${dealBadge(r)}</div>
+    ${!r.st ? `<div class="oos-banner">${ICON_WARN}<span>Сейчас нет в магазине — можно оставить в списке на потом</span></div>` : ''}
     ${s == null ? '' : `<div class="blk score-big"><div class="top"><span class="n c-${sk}">${s}</span>
       <span class="track"><i class="fill s-${sk}" style="display:block;width:${s}%"></i></span></div>
-      <div class="hint" style="margin-top:8px">Оценка состава${r.sp != null ? ` · лучше ${r.sp}% товаров в категории` : ''}</div></div>`}
+      <div class="hint" style="margin-top:10px">Оценка состава${r.sp != null ? ` · лучше ${r.sp}% товаров в категории` : ''}</div></div>`}
     ${(r.fl || []).length ? `<div class="e-list">${r.fl.map(f => `<span class="badge flag">${esc(FLAGS[f] || f)}</span>`).join('')}</div>` : ''}
-    ${d.e && d.e.length ? `<div class="e-list">${d.e.map(c => {
-      const h = (d.eh && d.eh[c]) ?? 0;
-      return `<span class="e h${h}" title="${E_NAMES[h]}">Е${esc(c)} · ${E_NAMES[h]}</span>`;
-    }).join('')}</div>` : ''}
+    ${eListHTML(d)}
     ${spark(d.hist)}
     <div class="kvs">
       ${r.pk ? `<div class="kv">Цена за ${esc(r.un || 'кг')}<b>${fmt(r.pk)} ₽</b></div>` : ''}
-      ${r.typ ? `<div class="kv">Обычная цена<b>${fmt(r.typ)} ₽</b></div>` : ''}
-      ${r.kc ? `<div class="kv">КБЖУ / 100 г<b>${fmt(r.kc)} ккал · Б${fmt(r.pr)} Ж${fmt(d.fat)} У${fmt(d.carb)}</b></div>` : ''}
-      ${r.de && r.d ? `<div class="kv">Скидка до<b>${esc(r.de)}</b></div>` : ''}
-      ${!r.st ? `<div class="kv" style="color:var(--danger)">Наличие<b style="color:var(--danger)">нет в магазине</b></div>` : ''}
+      ${r.typ && Math.abs(r.typ - r.p) > 0.01 ? `<div class="kv">Обычная цена<b>${fmt(r.typ)} ₽</b></div>` : ''}
+      ${r.kc ? `<div class="kv wide">КБЖУ на 100 г<b>${fmt(r.kc)} ккал · Б ${fmt(r.pr)} · Ж ${fmt(d.fat)} · У ${fmt(d.carb)}</b></div>` : ''}
+      ${r.de && r.d ? `<div class="kv">Скидка действует до<b>${esc(fmtDate(r.de))}</b></div>` : ''}
     </div>
     ${d.comp ? `<div class="blk comp"><b>Состав:</b> <span class="txt${d.comp.length > 160 ? ' clip' : ''}" id="comp-txt">${esc(d.comp)}</span>
       ${d.comp.length > 160 ? '<button type="button" class="more" id="comp-more">Показать полностью</button>' : ''}</div>`
       : '<p class="hint">Состав не указан</p>'}
     <div class="sec-h">Похожие в «${esc(r.k2 || r.k1 || 'категории')}» — качество за рубль</div>
     ${sim.length ? `<div class="sim">${sim.map(x => `<div class="s-card" data-c="${esc(x.c)}">
-        ${photoHTML(x)}<div class="st">${esc(x.t)}</div>
-        <div class="sp">${fmt(x.p)} ₽</div></div>`).join('')}</div>`
+        ${photoHTML(x, x.s != null ? `<span class="badge-abs">${scoreHTML(x)}</span>` : '')}
+        <div class="st">${esc(x.t)}</div>
+        <div class="sp">${fmt(x.p)} ₽${x.op && x.op > x.p ? `<span class="old">${fmt(x.op)} ₽</span>` : ''}</div></div>`).join('')}</div>`
       : '<p class="hint">нет похожих в наличии</p>'}
     <div class="sec-h">Меньше видеть</div>
     <button type="button" class="rowbtn" data-menu="p">${ICON_EYE}<span>Скрыть товар</span></button>
@@ -381,6 +430,12 @@ addEventListener('keydown', e => { if (e.key === 'Escape') closeCard(); });
 $('#card').addEventListener('click', e => {
   const t = e.target;
   if (t.closest('#c-close')) return closeCard();
+  if (t.closest('#e-more')) {
+    const rest = $('#e-rest');
+    if (rest) { rest.hidden = false; rest.style.display = 'contents'; }
+    $('#e-more').remove();
+    return;
+  }
   if (t.closest('#comp-more')) {
     const txt = $('#comp-txt'), on = txt.classList.toggle('clip');
     $('#comp-more').textContent = on ? 'Показать полностью' : 'Свернуть';
@@ -418,15 +473,17 @@ function renderCart() {
   $('#cart-items').innerHTML = codes.map(c => {
     const r = BYCODE.get(c);
     if (!r) return '';
-    return `<div class="citem" data-c="${esc(c)}">
+    return `<div class="citem${r.st ? '' : ' oos'}" data-c="${esc(c)}">
       ${photoHTML(r)}
       <div><div class="ti">${esc(r.t)}</div>
         <div class="crow"><span class="act-c">${actHTML(c, true)}</span>
-          <span><span class="sum">${fmt(r.p * cart[c])} ₽</span>${!r.st ? '<div class="oos">нет в наличии</div>' : ''}</span>
+          <span class="cright"><span class="sum">${fmt(r.p * cart[c])} ₽</span>${!r.st ? '<span class="oos">нет в наличии</span>' : ''}</span>
         </div></div></div>`;
   }).join('') || `<div class="empty">${emptyHTML(ICON_CART, 'Список пуст', 'Добавляйте товары кнопкой «+ В список»',
     '<button type="button" class="ghost" id="to-search">В каталог</button>')}</div>`;
   $('#cart-clear').hidden = !codes.length;
+  // для пустого списка бюджет — шум, показываем только сам призыв набрать корзину
+  $('.budget-card').hidden = !codes.length;
   const budget = LS.get('budget', null);
   if (document.activeElement !== $('#budget')) $('#budget').value = budget ?? '';
   const over = budget && total > budget;
@@ -434,10 +491,15 @@ function renderCart() {
   $('#cart-total').className = 'total' + (over ? ' over' : '');
   const pct = budget ? Math.min(100, total / budget * 100) : 0;
   const bar = $('#budget-bar');
+  // без бюджета пустая полоса выглядела как сломанный элемент — просто прячем её
+  $('#bar-track').hidden = !budget;
   bar.style.width = pct + '%';
   bar.className = 'bar-fill' + (over ? ' over' : pct >= 85 ? ' warn' : '');
-  $('#budget-hint').textContent = !budget ? 'Задайте бюджет, чтобы видеть прогресс'
+  const hint = $('#budget-hint');
+  hint.textContent = !budget ? 'Задайте бюджет, чтобы видеть прогресс'
     : over ? `Превышение на ${fmt(total - budget)} ₽` : `${Math.round(pct)}% бюджета · остаток ${fmt(budget - total)} ₽`;
+  hint.className = 'hint' + (over ? ' over' : '');
+  hint.style.marginTop = budget ? '' : '10px';
   updateCartBadge();
 }
 $('#budget').addEventListener('input', e => { LS.set('budget', +e.target.value || null); renderCart(); });
@@ -554,6 +616,8 @@ $('#tiles').addEventListener('click', e => {
   const b = e.target.closest('[data-tile],[data-deals]');
   if (!b) return;
   sub = '';
+  // незакрытый поисковый запрос иначе «съедал» весь раздел и экран выглядел пустым
+  $('#q').value = ''; $('#q-clear').hidden = true;
   if (b.dataset.deals) { onlyDeals = true; cat = ''; $('#sort').value = 'rel'; }
   else { cat = b.dataset.tile; onlyDeals = false; }
   renderHead();

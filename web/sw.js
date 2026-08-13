@@ -1,6 +1,6 @@
 /* Офлайн-кэш: оболочка — cache-first, данные — network-first с запасным кэшем. */
-const SHELL = 'shell-v6';
-const DATA = 'data-v6';
+const SHELL = 'shell-v8';
+const DATA = 'data-v8';
 const SHELL_FILES = ['.', 'index.html', 'style.css', 'app.js', 'manifest.json', 'icon.svg'];
 
 self.addEventListener('install', e => {
