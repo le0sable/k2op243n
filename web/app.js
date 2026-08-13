@@ -11,7 +11,7 @@ let cart = LS.get('cart', {});          // code -> qty
 let blP = new Set(LS.get('blP', []));   // чёрный список товаров
 let blB = new Set(LS.get('blB', []));   // чёрный список брендов
 let fav = new Set(LS.get('fav', []));
-let tab = 'search', cat = '', curCode = null;
+let tab = 'search', cat = '', sub = '', curCode = null;
 const shardCache = {};
 
 const fmt = n => n == null || isNaN(n) ? '—' : (Math.round(n * 100) / 100).toLocaleString('ru-RU');
@@ -38,8 +38,7 @@ async function boot() {
   const cols = idx.cols;
   ROWS = idx.rows.map(a => { const o = {}; cols.forEach((c, i) => o[c] = a[i]); return o; });
   ROWS.forEach(r => BYCODE.set(String(r.c), r));
-  $('#cats').innerHTML = [`<button type="button" class="cat on" data-cat="">Все</button>`]
-    .concat((META.cats || []).map(c => `<button type="button" class="cat" data-cat="${esc(c)}">${esc(c)}</button>`)).join('');
+  renderCats();
   $('#meta-info').textContent = `Срез: ${META.date} · ${fmt(META.products)} товаров · история ${META.days} дн.`;
   render();
   updateCartBadge();
@@ -50,6 +49,20 @@ function skeletons() {
   $('#list').innerHTML = Array(5).fill('<div class="sk"><i class="b"></i><div><i class="l1"></i><i class="l2"></i></div></div>').join('');
 }
 
+/* категории: без выбора — разделы (k1), с выбором — «назад» + подкатегории (k2) */
+function renderCats() {
+  const el = $('#cats');
+  if (!cat) {
+    el.innerHTML = [`<button type="button" class="cat${!cat ? ' on' : ''}" data-cat="">Все</button>`]
+      .concat((META.cats || []).map(c => `<button type="button" class="cat" data-cat="${esc(c)}">${esc(c)}</button>`)).join('');
+    return;
+  }
+  const subs = [...new Set(ROWS.filter(r => r.k1 === cat && r.k2).map(r => r.k2))].sort();
+  el.innerHTML = [`<button type="button" class="cat back" data-cat="">‹ ${esc(cat)}</button>`,
+    `<button type="button" class="cat${!sub ? ' on' : ''}" data-sub="">Все</button>`]
+    .concat(subs.map(c => `<button type="button" class="cat${sub === c ? ' on' : ''}" data-sub="${esc(c)}">${esc(c)}</button>`)).join('');
+}
+
 /* ---------- выборка ---------- */
 function visible(r) { return !blP.has(String(r.c)) && !(r.b && blB.has(r.b)); }
 
@@ -58,6 +71,7 @@ function filterRows() {
   let rs = ROWS.filter(visible);
   if ($('#stock').checked) rs = rs.filter(r => r.st);
   if (cat) rs = rs.filter(r => r.k1 === cat);
+  if (sub) rs = rs.filter(r => r.k2 === sub);
   // «Скидки» — только настоящая выгода, разоблачённые скидки сюда не попадают
   if (tab === 'deals') rs = rs.filter(r => r.d > 0 && r.rel != null && r.rel < -1);
   if (q) {
@@ -346,13 +360,15 @@ $('#cart-clear').addEventListener('click', e => {
 /* ---------- моё ---------- */
 function renderPrefs() {
   const favRows = [...fav].map(c => BYCODE.get(c)).filter(Boolean);
-  $('#fav-h').textContent = `Любимое (${favRows.length})`;
+  $('#fav-h').innerHTML = `Любимое (${favRows.length})` +
+    (favRows.length ? ' <button type="button" class="mini-clear" data-clear="fav">очистить</button>' : '');
   $('#fav-items').innerHTML = favRows.map(itemHTML).join('')
     || `<div class="empty">${emptyHTML(ICON_HEART, 'Пока нет избранного', 'Отмечайте товары ♡ в карточке')}</div>`;
   $('#bl-brands-h').textContent = `Скрытые бренды (${blB.size})`;
   $('#bl-products-h').textContent = `Скрытые товары (${blP.size})`;
-  $('#bl-brands').innerHTML = [...blB].map(b => `<span class="bl-chip">${esc(b)}<button type="button" data-unb="${esc(b)}" aria-label="Вернуть">✕</button></span>`).join('') || '<p class="hint">пусто</p>';
-  $('#bl-products').innerHTML = [...blP].map(c => { const r = BYCODE.get(c); return `<span class="bl-chip">${esc(r ? r.t : c)}<button type="button" data-unp="${esc(c)}" aria-label="Вернуть">✕</button></span>`; }).join('') || '<p class="hint">пусто</p>';
+  const clearBtn = k => ` <button type="button" class="mini-clear" data-clear="${k}">вернуть все</button>`;
+  $('#bl-brands').innerHTML = ([...blB].map(b => `<span class="bl-chip">${esc(b)}<button type="button" data-unb="${esc(b)}" aria-label="Вернуть">✕</button></span>`).join('') + (blB.size > 1 ? clearBtn('blB') : '')) || '<p class="hint">пусто</p>';
+  $('#bl-products').innerHTML = ([...blP].map(c => { const r = BYCODE.get(c); return `<span class="bl-chip">${esc(r ? r.t : c)}<button type="button" data-unp="${esc(c)}" aria-label="Вернуть">✕</button></span>`; }).join('') + (blP.size > 1 ? clearBtn('blP') : '')) || '<p class="hint">пусто</p>';
 }
 $('#prefs-view').addEventListener('click', e => {
   const acc = e.target.closest('[data-acc]');
@@ -361,6 +377,16 @@ $('#prefs-view').addEventListener('click', e => {
     body.hidden = !body.hidden;
     acc.setAttribute('aria-expanded', String(!body.hidden));
     acc.querySelector('.acc-x').textContent = body.hidden ? 'Показать' : 'Скрыть';
+    return;
+  }
+  const clr = e.target.closest('[data-clear]');
+  if (clr) {
+    const k = clr.dataset.clear;
+    if (!clr.dataset.sure) { clr.dataset.sure = '1'; clr.textContent = 'точно?'; setTimeout(() => { delete clr.dataset.sure; }, 3000); return; }
+    if (k === 'fav') { fav.clear(); LS.set('fav', []); }
+    if (k === 'blB') { blB.clear(); LS.set('blB', []); }
+    if (k === 'blP') { blP.clear(); LS.set('blP', []); }
+    renderPrefs(); render();
     return;
   }
   const ub = e.target.closest('[data-unb]'), up = e.target.closest('[data-unp]');
@@ -393,8 +419,8 @@ $('#cart-items').addEventListener('click', e => {
 });
 $('#empty').addEventListener('click', e => {
   if (!e.target.closest('#reset-f')) return;
-  $('#q').value = ''; cat = ''; $('#stock').checked = true;
-  $$('.cat').forEach(b => b.classList.toggle('on', !b.dataset.cat));
+  $('#q').value = ''; cat = ''; sub = ''; $('#stock').checked = true;
+  renderCats();
   render();
 });
 
@@ -421,8 +447,9 @@ $('#tabs').addEventListener('click', e => {
 $('#cats').addEventListener('click', e => {
   const b = e.target.closest('.cat');
   if (!b) return;
-  cat = b.dataset.cat;
-  $$('.cat').forEach(x => x.classList.toggle('on', x === b));
+  if (b.dataset.cat !== undefined) { cat = b.dataset.cat; sub = ''; }
+  else sub = b.dataset.sub;
+  renderCats();
   render();
 });
 $('#q').addEventListener('input', render);

@@ -188,7 +188,9 @@ def main():
             "s": score, "fl": flags, "st": bool(r.get("in_stock")),
             "kc": f(r.get("nutrition_calories"), 0), "pr": f(r.get("nutrition_proteins"), 1),
             "typ": typ, "rel": deal,
-            "im": r.get("images") if isinstance(r.get("images"), str) else None,
+            # в parquet images — все URL через "|"; для карточки нужен первый
+            "im": (r["images"].split("|", 1)[0] or None)
+                  if isinstance(r.get("images"), str) and r["images"] else None,
         })
         details[code] = {
             "comp": r.get("composition") if isinstance(r.get("composition"), str) else None,
