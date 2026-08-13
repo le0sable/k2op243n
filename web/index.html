@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#009860">
+<meta name="theme-color" content="#FFFFFF">
 <title>Корзинка — помощник покупок</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
@@ -13,13 +13,17 @@
 
 <!-- ---------- каталог ---------- -->
 <header id="top">
+  <div id="cat-head" class="cat-head" hidden>
+    <button id="back" type="button" aria-label="Назад">‹</button>
+    <h1 id="cat-title"></h1>
+  </div>
   <div class="srch">
     <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
     <input id="q" type="search" placeholder="Найти товар…" autocomplete="off" enterkeyhint="search">
     <button id="q-clear" type="button" aria-label="Очистить" hidden>✕</button>
   </div>
-  <div id="cats" class="chips"></div>
-  <div class="toolbar">
+  <div id="cats" class="chips" hidden></div>
+  <div id="toolbar" class="toolbar" hidden>
     <select id="sort" aria-label="Сортировка">
       <option value="rel">Сначала выгодные</option>
       <option value="pk">Дешевле за кг/л</option>
@@ -32,6 +36,7 @@
 </header>
 
 <main id="list-view">
+  <div id="tiles" class="tiles" hidden></div>
   <p id="legend" class="legend" hidden></p>
   <div id="list" class="grid"></div>
   <div id="empty" class="empty" hidden></div>

@@ -26,6 +26,11 @@ const ICON_CART = '<svg viewBox="0 0 24 24"><path d="M4 8h16l-1.6 11H5.6L4 8ZM9 
 const ICON_HEART = '<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.6-7-9.2A4 4 0 0 1 12 8a4 4 0 0 1 7-2.8c0 4.6-7 14.8-7 14.8Z"/></svg>';
 const ICON_EYE = '<svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 20 20 4"/></svg>';
 
+/* пастельные фоны плиток разделов (палитра Лавки) */
+const TILE_BG = ['#E1F8FA', '#FFECB2', '#ECF5D3', '#FEF0D5', '#FFF6ED',
+  '#E7EEFB', '#F3E8FB', '#FBE4EC', '#E4F6E9'];
+const DEAL_BG = '#FDE9E5';
+
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg; t.hidden = false;
@@ -40,7 +45,8 @@ async function boot() {
   const cols = idx.cols;
   ROWS = idx.rows.map(a => { const o = {}; cols.forEach((c, i) => o[c] = a[i]); return o; });
   ROWS.forEach(r => BYCODE.set(String(r.c), r));
-  renderCats();
+  buildTiles();
+  renderHead();
   $('#meta-info').textContent = `Срез: ${META.date} · ${fmt(META.products)} товаров · история ${META.days} дн.`;
   render();
   updateCartBadge();
@@ -51,19 +57,64 @@ function skeletons() {
   $('#list').innerHTML = Array(6).fill('<div class="sk"><i class="b"></i><i class="l1"></i><i class="l2"></i></div>').join('');
 }
 
-/* чипы: «Выгода» + разделы (k1); внутри раздела — «назад» + подкатегории (k2) */
-function renderCats() {
-  const el = $('#cats');
-  const deal = `<button type="button" class="chip deal${onlyDeals ? ' on' : ''}" data-deals="1">🔥 Выгода</button>`;
-  if (!cat) {
-    el.innerHTML = [deal, `<button type="button" class="chip${!cat ? ' on' : ''}" data-cat="">Все</button>`]
-      .concat((META.cats || []).map(c => `<button type="button" class="chip" data-cat="${esc(c)}">${esc(c)}</button>`)).join('');
-    return;
+/* ---------- экран плиток разделов ---------- */
+let TILES = [];
+/* по каждому разделу: сколько товаров и фото самого «популярного» — для картинки плитки */
+function buildTiles() {
+  const by = new Map();
+  for (const r of ROWS) {
+    if (!r.k1) continue;
+    let t = by.get(r.k1);
+    if (!t) by.set(r.k1, t = { name: r.k1, n: 0, im: '', rc: -1 });
+    t.n++;
+    const rc = r.rc || 0;
+    if (r.im && r.st && rc > t.rc) { t.rc = rc; t.im = r.im; }
   }
-  const subs = [...new Set(ROWS.filter(r => r.k1 === cat && r.k2).map(r => r.k2))].sort();
-  el.innerHTML = [`<button type="button" class="chip back" data-cat="">‹ ${esc(cat)}</button>`, deal,
-    `<button type="button" class="chip${!sub ? ' on' : ''}" data-sub="">Все</button>`]
+  TILES = [...by.values()].sort((a, b) => b.n - a.n);
+  // крупные разделы занимают две клетки — граница по медиане числа товаров
+  const big = TILES.length ? TILES[Math.max(0, Math.floor(TILES.length / 3) - 1)].n : 0;
+  TILES.forEach((t, i) => { t.wide = t.n >= big && i < Math.ceil(TILES.length / 3); t.bg = TILE_BG[i % TILE_BG.length]; });
+}
+
+function tileHTML(t) {
+  const img = t.im ? `<img class="tim" loading="lazy" src="${esc(t.im)}" alt="" onerror="this.style.display='none'">` : '';
+  const attr = t.deals ? 'data-deals="1"' : `data-tile="${esc(t.name)}"`;
+  return `<button type="button" class="tile${t.wide ? ' wide' : ''}" ${attr}
+    style="background:${t.bg}"><span class="tt">${esc(t.name)}</span>
+    <span class="tn">${fmt(t.n)}</span>${img}</button>`;
+}
+
+function renderTiles() {
+  const deals = ROWS.filter(r => visible(r) && r.st && isDeal(r));
+  const dim = deals.slice().sort((a, b) => (b.rc || 0) - (a.rc || 0)).find(r => r.im);
+  const dealTile = tileHTML({ name: '🔥 Скидки', n: deals.length, im: dim ? dim.im : '', wide: true, bg: DEAL_BG, deals: 1 });
+  $('#tiles').innerHTML = dealTile + TILES.map(tileHTML).join('');
+}
+
+/* шапка: на корневом экране — только поиск, внутри раздела — назад, чипы k2 и сортировка */
+function renderHead() {
+  const root = isRoot();
+  $('#cat-head').hidden = root;
+  $('#cats').hidden = root;
+  $('#toolbar').hidden = root;
+  $('#top').style.top = '0px';
+  if (root) return;
+  $('#cat-title').textContent = onlyDeals ? 'Скидки' : (cat || 'Поиск');
+  const subs = cat ? [...new Set(ROWS.filter(r => r.k1 === cat && r.k2).map(r => r.k2))].sort() : [];
+  $('#cats').hidden = !subs.length;
+  if (!subs.length) { $('#cats').innerHTML = ''; return; }
+  $('#cats').innerHTML = [`<button type="button" class="chip${!sub ? ' on' : ''}" data-sub="">Все</button>`]
     .concat(subs.map(c => `<button type="button" class="chip${sub === c ? ' on' : ''}" data-sub="${esc(c)}">${esc(c)}</button>`)).join('');
+  // заголовок и поиск уезжают вверх, чипы подкатегорий и сортировка залипают
+  $('#top').style.top = -$('#cats').offsetTop + 'px';
+}
+
+const isRoot = () => !cat && !onlyDeals && !$('#q').value.trim();
+/* возврат на экран плиток */
+function toRoot() {
+  cat = ''; sub = ''; onlyDeals = false;
+  $('#q').value = ''; $('#q-clear').hidden = true;
+  renderHead(); render(); scrollTo(0, 0);
 }
 
 /* ---------- выборка ---------- */
@@ -144,7 +195,7 @@ function itemHTML(r) {
     ${photoHTML(r, heart)}
     ${rateHTML(r)}
     <div class="name">${esc(r.t)}</div>
-    <div class="price">${fmt(r.p)} ₽${r.op && r.op > r.p ? `<span class="old">${fmt(r.op)} ₽</span>` : ''}</div>
+    <div class="price${r.op && r.op > r.p ? ' sale' : ''}">${fmt(r.p)} ₽${r.op && r.op > r.p ? `<span class="old">${fmt(r.op)} ₽</span>` : ''}</div>
     <div class="ppk">${r.pk ? `${fmt(r.pk)} ₽/${esc(r.un || 'кг')}` : ''}</div>
     ${scoreHTML(r) ? `<div>${scoreHTML(r)}</div>` : ''}
     <div class="act">${actHTML(r.c)}</div></article>`;
@@ -157,6 +208,17 @@ function emptyHTML(icon, h, p, btn) {
 /* ---------- лента ---------- */
 let shown = 0, curRows = [];
 function render() {
+  // корневой экран каталога — плитки разделов вместо ленты товаров
+  if (isRoot()) {
+    curRows = []; shown = 0;
+    $('#tiles').hidden = false;
+    $('#list').innerHTML = '';
+    $('#empty').hidden = true;
+    $('#legend').hidden = true;
+    renderTiles();
+    return;
+  }
+  $('#tiles').hidden = true;
   curRows = filterRows();
   shown = Math.min(60, curRows.length);
   $('#list').innerHTML = curRows.slice(0, shown).map(itemHTML).join('');
@@ -187,8 +249,15 @@ addEventListener('scroll', () => {
 
 /* обновить счётчики в уже отрисованном DOM, не перерисовывая ленту */
 function syncQty(code) {
-  $$(`[data-c="${CSS.escape(String(code))}"] .act`).forEach(el => el.innerHTML = actHTML(code));
-  $$(`[data-c="${CSS.escape(String(code))}"] .act-c`).forEach(el => el.innerHTML = actHTML(code, true));
+  const n = qty(code);
+  const upd = (el, compact) => {
+    // если степпер уже есть и остаётся — меняем только число, не пересоздавая кнопки
+    const num = el.querySelector('.qty .n');
+    if (num && n > 0) { num.textContent = n; return; }
+    el.innerHTML = actHTML(code, compact);
+  };
+  $$(`[data-c="${CSS.escape(String(code))}"] .act`).forEach(el => upd(el, false));
+  $$(`[data-c="${CSS.escape(String(code))}"] .act-c`).forEach(el => upd(el, true));
   updateCartBadge();
 }
 function addToCart(code, delta) {
@@ -290,8 +359,8 @@ async function openCard(code) {
       ${r.de && r.d ? `<div class="kv">Скидка до<b>${esc(r.de)}</b></div>` : ''}
       ${!r.st ? `<div class="kv" style="color:var(--danger)">Наличие<b style="color:var(--danger)">нет в магазине</b></div>` : ''}
     </div>
-    ${d.comp ? `<div class="blk comp"><b>Состав:</b> <span class="txt clip" id="comp-txt">${esc(d.comp)}</span>
-      <button type="button" class="more" id="comp-more">Показать полностью</button></div>`
+    ${d.comp ? `<div class="blk comp"><b>Состав:</b> <span class="txt${d.comp.length > 160 ? ' clip' : ''}" id="comp-txt">${esc(d.comp)}</span>
+      ${d.comp.length > 160 ? '<button type="button" class="more" id="comp-more">Показать полностью</button>' : ''}</div>`
       : '<p class="hint">Состав не указан</p>'}
     <div class="sec-h">Похожие в «${esc(r.k2 || r.k1 || 'категории')}» — качество за рубль</div>
     ${sim.length ? `<div class="sim">${sim.map(x => `<div class="s-card" data-c="${esc(x.c)}">
@@ -449,9 +518,8 @@ $('#cart-items').addEventListener('click', e => {
 });
 $('#empty').addEventListener('click', e => {
   if (!e.target.closest('#reset-f')) return;
-  $('#q').value = ''; $('#q-clear').hidden = true; cat = ''; sub = ''; onlyDeals = false; $('#stock').checked = true;
-  renderCats();
-  render();
+  $('#stock').checked = true;
+  toRoot();
 });
 
 /* ---------- вкладки ---------- */
@@ -475,16 +543,32 @@ $('#tabs').addEventListener('click', e => {
 });
 $('#cats').addEventListener('click', e => {
   const b = e.target.closest('.chip');
-  if (!b) return;
-  if (b.dataset.deals) onlyDeals = !onlyDeals;
-  else if (b.dataset.cat !== undefined) { cat = b.dataset.cat; sub = ''; }
-  else sub = b.dataset.sub;
-  renderCats();
+  if (!b || b.dataset.sub === undefined) return;
+  sub = b.dataset.sub;
+  renderHead();
   render();
   scrollTo(0, 0);
 });
-$('#q').addEventListener('input', e => { $('#q-clear').hidden = !e.target.value; render(); });
-$('#q-clear').addEventListener('click', () => { $('#q').value = ''; $('#q-clear').hidden = true; render(); });
+/* тап по плитке — переход в список раздела (или в список выгодных) */
+$('#tiles').addEventListener('click', e => {
+  const b = e.target.closest('[data-tile],[data-deals]');
+  if (!b) return;
+  sub = '';
+  if (b.dataset.deals) { onlyDeals = true; cat = ''; $('#sort').value = 'rel'; }
+  else { cat = b.dataset.tile; onlyDeals = false; }
+  renderHead();
+  render();
+  scrollTo(0, 0);
+});
+$('#back').addEventListener('click', toRoot);
+$('#q').addEventListener('input', e => {
+  $('#q-clear').hidden = !e.target.value;
+  renderHead(); render();
+});
+$('#q-clear').addEventListener('click', () => {
+  $('#q').value = ''; $('#q-clear').hidden = true;
+  renderHead(); render();
+});
 $('#sort').addEventListener('change', render);
 $('#stock').addEventListener('change', render);
 

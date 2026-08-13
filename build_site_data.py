@@ -175,7 +175,7 @@ def main():
 
         def s(key):
             v = r.get(key)
-            return v if isinstance(v, str) and v else None
+            return v if isinstance(v, str) and v.strip(" -–—") else None
 
         rows.append({
             "c": code, "t": s("title"), "b": s("brand"),
@@ -215,7 +215,9 @@ def main():
             g = sorted(groups.get(row[key], []))
             if len(g) >= 8:
                 import bisect
-                row["sp"] = round(bisect.bisect_left(g, row["s"]) / len(g) * 100)
+                # средний ранг: у максимума в однородной группе перцентиль ~50, а не 0
+                mid = (bisect.bisect_left(g, row["s"]) + bisect.bisect_right(g, row["s"])) / 2
+                row["sp"] = round(mid / len(g) * 100)
     for row in rows:
         row.setdefault("sp", None)
         # ценность: качество за рубль (относительно категории считается на клиенте)
