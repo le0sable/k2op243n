@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1d6b4f">
+<meta name="theme-color" content="#009860">
 <title>Корзинка — помощник покупок</title>
 <link rel="manifest" href="manifest.json">
 <link rel="stylesheet" href="style.css">
@@ -11,13 +11,15 @@
 <body>
 <div id="app">
 
-<!-- ---------- поиск / скидки ---------- -->
+<!-- ---------- каталог ---------- -->
 <header id="top">
   <div class="srch">
     <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
     <input id="q" type="search" placeholder="Найти товар…" autocomplete="off" enterkeyhint="search">
+    <button id="q-clear" type="button" aria-label="Очистить" hidden>✕</button>
   </div>
-  <div class="filters">
+  <div id="cats" class="chips"></div>
+  <div class="toolbar">
     <select id="sort" aria-label="Сортировка">
       <option value="rel">Сначала выгодные</option>
       <option value="pk">Дешевле за кг/л</option>
@@ -25,34 +27,42 @@
       <option value="v">Качество за рубль</option>
       <option value="p">Дешевле</option>
     </select>
-    <label class="chk"><input type="checkbox" id="stock" checked> есть в наличии</label>
+    <label class="chk"><input type="checkbox" id="stock" checked><span>в наличии</span></label>
   </div>
-  <div id="cats" class="cats"></div>
 </header>
 
 <main id="list-view">
   <p id="legend" class="legend" hidden></p>
-  <div id="list"></div>
+  <div id="list" class="grid"></div>
   <div id="empty" class="empty" hidden></div>
 </main>
 
 <!-- ---------- список покупок ---------- -->
 <section id="cart-view" class="page" hidden>
   <h2>Список покупок</h2>
-  <div class="budget-row">
-    <label class="bl">Бюджет <input id="budget" type="number" inputmode="numeric" placeholder="₽"></label>
-    <div id="cart-total" class="total">Итого 0 ₽</div>
+  <div class="budget-card">
+    <div class="budget-row">
+      <label class="bl">Бюджет
+        <input id="budget" type="number" inputmode="numeric" placeholder="₽"></label>
+      <div id="cart-total" class="total">Итого 0 ₽</div>
+    </div>
+    <div class="bar-track"><div id="budget-bar" class="bar-fill"></div></div>
+    <p id="budget-hint" class="hint"></p>
   </div>
-  <div class="bar-track"><div id="budget-bar" class="bar-fill"></div></div>
-  <p id="budget-hint" class="hint"></p>
   <div id="cart-items"></div>
   <button id="cart-clear" class="ghost wide" type="button" hidden>Очистить список</button>
 </section>
 
+<!-- ---------- любимое ---------- -->
+<section id="fav-view" class="page" hidden>
+  <div class="head-row"><h2 id="fav-h">Любимое</h2>
+    <button type="button" class="mini-clear" data-clear="fav" hidden id="fav-clear">очистить всё</button></div>
+  <div id="fav-items" class="grid"></div>
+</section>
+
 <!-- ---------- моё ---------- -->
 <section id="prefs-view" class="page" hidden>
-  <h2 id="fav-h">Любимое</h2>
-  <div id="fav-items"></div>
+  <h2>Моё</h2>
 
   <button class="acc" type="button" data-acc="bl-brands" aria-expanded="false">
     <span id="bl-brands-h">Скрытые бренды</span><span class="acc-x">Показать</span></button>
@@ -62,20 +72,28 @@
     <span id="bl-products-h">Скрытые товары</span><span class="acc-x">Показать</span></button>
   <div id="bl-products" class="acc-body" hidden></div>
 
-  <p class="hint meta" id="meta-info"></p>
+  <div class="info-card">
+    <h3>О данных</h3>
+    <p class="hint" id="meta-info"></p>
+    <p class="hint">Цены и состав — из каталога АШАН Симферополь. «Выгода» считается сравнением
+      с типичной ценой товара по истории, поэтому ярлык скидки на ценнике сюда не попадает
+      автоматически. Оценка состава — по Е-добавкам, флагам и длине состава.</p>
+  </div>
 </section>
 
 <!-- ---------- нижняя навигация ---------- -->
 <nav id="tabs">
-  <button type="button" data-tab="search" class="active">
-    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg><span>Поиск</span></button>
-  <button type="button" data-tab="deals">
-    <svg viewBox="0 0 24 24"><path d="M7 14 17 4M8.5 7.5a1.5 1.5 0 1 0 0-.1M15.5 16.5a1.5 1.5 0 1 0 0-.1M4 20h16"/></svg><span>Скидки</span></button>
+  <button type="button" data-tab="catalog" class="active">
+    <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>
+    <span>Каталог</span></button>
   <button type="button" data-tab="cart">
     <svg viewBox="0 0 24 24"><path d="M4 8h16l-1.6 11H5.6L4 8ZM9 8V5a3 3 0 0 1 6 0v3"/></svg>
     <span>Список</span><b id="cart-n" hidden></b></button>
+  <button type="button" data-tab="fav">
+    <svg viewBox="0 0 24 24"><path d="M12 20s-7-4.6-7-9.2A4 4 0 0 1 12 8a4 4 0 0 1 7-2.8c0 4.6-7 14.8-7 14.8Z"/></svg>
+    <span>Любимое</span></button>
   <button type="button" data-tab="prefs">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"/></svg>
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
     <span>Моё</span></button>
 </nav>
 
@@ -84,8 +102,7 @@
   <div id="card" role="dialog" aria-modal="true">
     <div class="handle-row">
       <div class="handle"></div>
-      <button id="c-menu" class="dots" type="button" aria-label="Ещё">⋯</button>
-      <div id="c-menu-pop" class="menu" hidden></div>
+      <button id="c-close" class="dots" type="button" aria-label="Закрыть">✕</button>
     </div>
     <div id="card-body"></div>
     <div id="card-foot" class="card-foot"></div>
