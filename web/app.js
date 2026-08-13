@@ -35,9 +35,23 @@ const ICON_HEART = '<svg viewBox="0 0 24 24"><path d="M12 20s-7-4.6-7-9.2A4 4 0 
 const ICON_EYE = '<svg viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/><path d="M4 20 20 4"/></svg>';
 const ICON_WARN = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.4v.2"/></svg>';
 
-/* пастельные фоны плиток разделов (палитра Лавки) */
-const TILE_BG = ['#E1F8FA', '#FFECB2', '#ECF5D3', '#FEF0D5', '#FFF6ED',
-  '#E7EEFB', '#F3E8FB', '#FBE4EC', '#E4F6E9'];
+/* Тематические группы разделов, как «прилавки» у Лавки.
+   Один пастельный цвет на всю группу — не радуга по плитке. */
+const GROUPS = [
+  {
+    name: 'Свежее', bg: '#ECF5D3', keys: ['Овощи, фрукты, орехи', 'Молочные продукты, яйца',
+      'Сыр', 'Птица, мясо', 'Рыба, икра, морепродукты', 'Колбасные изделия'],
+  },
+  {
+    name: 'Каждый день', bg: '#FFECB2', keys: ['Хлеб и выпечка', 'Бакалея',
+      'Замороженные продукты', 'Готовая еда', 'Собственное производство'],
+  },
+  {
+    name: 'К чаю и перекус', bg: '#FFF6ED', keys: ['Сладости', 'Чипсы, снеки, сухофрукты',
+      'Вода, соки, напитки', 'Чай, кофе, горячие напитки'],
+  },
+  { name: 'Остальное', bg: '#E7EEFB', keys: null },   // всё, что не попало выше
+];
 const DEAL_BG = '#FDE9E5';
 
 function toast(msg) {
@@ -55,6 +69,7 @@ async function boot() {
   ROWS = idx.rows.map(a => { const o = {}; cols.forEach((c, i) => o[c] = a[i]); return o; });
   ROWS.forEach(r => BYCODE.set(String(r.c), r));
   buildTiles();
+  renderSortBtn();
   renderHead();
   $('#meta-info').textContent = `Данные от ${fmtDate(META.date)} · ${fmt(META.products)} товаров · история ${META.days} дн.`;
   render();
@@ -68,7 +83,7 @@ function skeletons() {
 }
 
 /* ---------- экран плиток разделов ---------- */
-let TILES = [];
+let TILE_GROUPS = [];
 /* по каждому разделу: сколько товаров и фото самого «популярного» — для картинки плитки */
 function buildTiles() {
   const by = new Map();
@@ -80,14 +95,19 @@ function buildTiles() {
     const rc = r.rc || 0;
     if (r.im && r.st && rc > t.rc) { t.rc = rc; t.im = r.im; }
   }
-  TILES = [...by.values()].sort((a, b) => b.n - a.n);
-  // крупные разделы занимают две клетки — граница по медиане числа товаров
-  const big = TILES.length ? TILES[Math.max(0, Math.floor(TILES.length / 3) - 1)].n : 0;
-  TILES.forEach((t, i) => { t.wide = t.n >= big && i < Math.ceil(TILES.length / 3); t.bg = TILE_BG[i % TILE_BG.length]; });
+  const rest = new Set(by.keys());
+  TILE_GROUPS = [];
+  for (const g of GROUPS) {
+    const keys = g.keys ? g.keys.filter(k => by.has(k)) : [...rest].sort((a, b) => by.get(b).n - by.get(a).n);
+    const tiles = keys.map(k => { rest.delete(k); return by.get(k); });
+    if (tiles.length) TILE_GROUPS.push({ name: g.name, bg: g.bg, tiles });
+  }
+  // первая плитка каждой группы — широкая, как «Вся …» у Лавки
+  TILE_GROUPS.forEach(g => g.tiles.forEach((t, i) => { t.bg = g.bg; t.wide = i === 0; }));
 }
 
 function tileHTML(t) {
-  const img = t.im ? `<img class="tim" loading="lazy" src="${esc(t.im)}" alt="" onerror="this.style.display='none'">` : '';
+  const img = t.im ? `<img class="tim" loading="lazy" decoding="async" data-src="${esc(t.im)}" alt="">` : '';
   const attr = t.deals ? 'data-deals="1"' : `data-tile="${esc(t.name)}"`;
   return `<button type="button" class="tile${t.wide ? ' wide' : ''}${t.deals ? ' deals' : ''}" ${attr}
     style="background:${t.bg}"><span class="tt">${esc(t.name)}</span>
@@ -98,7 +118,9 @@ function renderTiles() {
   const deals = ROWS.filter(r => visible(r) && r.st && isDeal(r));
   const dim = deals.slice().sort((a, b) => (b.rc || 0) - (a.rc || 0)).find(r => r.im);
   const dealTile = tileHTML({ name: 'Скидки', n: deals.length, im: dim ? dim.im : '', wide: true, bg: DEAL_BG, deals: 1 });
-  $('#tiles').innerHTML = dealTile + TILES.map(tileHTML).join('');
+  $('#tiles').innerHTML = `<div class="tgrid first">${dealTile}</div>`
+    + TILE_GROUPS.map(g => `<h2 class="grp-h">${esc(g.name)}</h2>
+      <div class="tgrid">${g.tiles.map(tileHTML).join('')}</div>`).join('');
 }
 
 /* шапка: на корневом экране — только поиск, внутри раздела — назад, чипы k2 и сортировка */
@@ -146,15 +168,70 @@ function filterRows() {
       return terms.every(t => hay.includes(t));
     });
   }
-  const key = $('#sort').value;
-  const dir = (key === 's' || key === 'v') ? -1 : 1;
-  rs.sort((a, b) => {
-    const x = a[key], y = b[key];
-    if (x == null) return 1; if (y == null) return -1;
-    return (x - y) * dir;
-  });
-  return rs;
+  return applySort(rs);
 }
+
+/* ---------- сортировка-комбинатор ----------
+   Каждый включённый критерий даёт товару перцентильный ранг 0..1 в текущей выборке
+   (лучший = 1, без значения = 0), итог — среднее рангов. Так критерии не спорят
+   друг с другом: включённые «дешевле» и «чище состав» дают компромисс, а не один из двух.
+   Значение критерия всегда «больше = лучше», поэтому цены берутся со знаком минус. */
+const SORT_DEFS = [
+  { k: 'rel', t: 'Выгода', d: 'скидка от обычной цены', f: r => (r.d > 0 && r.rel != null) ? -r.rel : null },
+  // рейтинг с поправкой на число отзывов: «5.0 (1 отзыв)» не должен бить «4.8 (200)»
+  { k: 'r', t: 'Оценка покупателей', d: 'с поправкой на число отзывов', f: r => r.r ? r.r * Math.min(r.rc || 0, 20) / 20 : null },
+  { k: 's', t: 'Чистота состава', d: 'меньше добавок и флагов', f: r => r.s },
+  { k: 'v', t: 'Качество за рубль', d: 'оценка состава на рубль', f: r => r.v },
+  { k: 'pk', t: 'Дешевле за кг', d: 'цена за килограмм или литр', f: r => r.pk != null ? -r.pk : null },
+  { k: 'p', t: 'Дешевле', d: 'цена за упаковку', f: r => r.p != null ? -r.p : null },
+];
+let sortSel = new Set(LS.get('sortSel', ['rel']).filter(k => SORT_DEFS.some(d => d.k === k)));
+if (!sortSel.size) sortSel.add('rel');
+
+function applySort(rs) {
+  const defs = SORT_DEFS.filter(d => sortSel.has(d.k));
+  if (!defs.length || rs.length < 2) return rs;
+  const sum = new Map();
+  for (const d of defs) {
+    const vals = [];
+    for (const r of rs) { const v = d.f(r); if (v != null && !isNaN(v)) vals.push([v, r]); }
+    vals.sort((a, b) => a[0] - b[0]);
+    const n = vals.length;
+    for (let i = 0; i < n; i++) {
+      const r = vals[i][1];
+      sum.set(r, (sum.get(r) || 0) + (n > 1 ? i / (n - 1) : 1));
+    }
+  }
+  // стабильность: при равных суммах сохраняем исходный порядок
+  return rs.map((r, i) => [r, i])
+    .sort((a, b) => ((sum.get(b[0]) || 0) - (sum.get(a[0]) || 0)) || (a[1] - b[1]))
+    .map(x => x[0]);
+}
+
+function renderSortBtn() {
+  const n = sortSel.size;
+  const one = n === 1 && SORT_DEFS.find(d => sortSel.has(d.k));
+  $('#sort-btn-t').textContent = one ? one.t : `Сортировка · ${n}`;
+}
+function renderSortOpts() {
+  $('#sort-opts').innerHTML = SORT_DEFS.map(d => `<label class="srow">
+    <input type="checkbox" data-sk="${d.k}"${sortSel.has(d.k) ? ' checked' : ''}>
+    <span class="sr-t">${esc(d.t)}<i>${esc(d.d)}</i></span><span class="sr-box"></span></label>`).join('');
+}
+function openSort() { renderSortOpts(); $('#sort-overlay').hidden = false; }
+function closeSort() { $('#sort-overlay').hidden = true; }
+$('#sort-btn').addEventListener('click', openSort);
+$('#sort-overlay').addEventListener('click', e => {
+  if (e.target.id === 'sort-overlay' || e.target.closest('#sort-close')) return closeSort();
+  const cb = e.target.closest('[data-sk]');
+  if (!cb) return;
+  const k = cb.dataset.sk;
+  if (cb.checked) sortSel.add(k); else sortSel.delete(k);
+  // хотя бы один критерий должен остаться, иначе порядок становится случайным
+  if (!sortSel.size) { sortSel.add(k); cb.checked = true; toast('Оставьте хотя бы один критерий'); }
+  LS.set('sortSel', [...sortSel]);
+  renderSortBtn(); render();
+});
 
 /* ---------- элементы ---------- */
 /* заглушка лежит под фото, но показывается только классом .noimg —
@@ -163,20 +240,45 @@ function photoHTML(r, extra, cls) {
   const ph = `<div class="ph">${ICON_BOX}</div>`;
   // заглушка видна, пока фото грузится (и остаётся, если не загрузилось),
   // но исчезает после load — иначе её серый фон торчал по бокам вытянутых картинок
-  const img = r.im ? `<img loading="lazy" src="${esc(r.im)}" alt="">` : '';
+  const img = r.im ? `<img loading="lazy" decoding="async" data-src="${esc(r.im)}" alt="">` : '';
   return `<div class="ph-wrap ${cls || ''}">${ph}${img}${extra || ''}</div>`;
 }
+
+/* ---------- экономия трафика на фото ----------
+   Оригиналы с auchan.ru весят 35–620 КБ, уменьшенных на CDN нет. Поэтому src
+   проставляется только у картинок, подошедших к вьюпорту (loading=lazy оставлен
+   страховкой): быстрый скролл больше не ставит в очередь сотни оригиналов.
+   Повторные заходы берутся из кэша IMG в service worker. */
+const imgIO = new IntersectionObserver(es => {
+  for (const e of es) {
+    if (!e.isIntersecting) continue;
+    imgIO.unobserve(e.target);
+    const src = e.target.dataset.src;
+    if (src) { delete e.target.dataset.src; e.target.src = src; }
+  }
+}, { rootMargin: '600px 600px' });
+
+function scanImgs() {
+  for (const img of $$('img[data-src]')) imgIO.observe(img);
+}
+// карточки рисуются в разных местах через innerHTML — ловим появление узлов разом
+const domIO = new MutationObserver(() => {
+  clearTimeout(scanImgs._t);
+  scanImgs._t = setTimeout(scanImgs, 30);
+});
+domIO.observe(document.body, { childList: true, subtree: true });
 
 /* отметка «фото приехало» — снимает серую заглушку под картинкой */
 function markPhoto(img) {
   if (!img.complete || !img.naturalWidth) return;
   img.closest('.ph-wrap')?.classList.add('ok');
+  img.classList.add('shown');
 }
 addEventListener('load', e => { if (e.target.tagName === 'IMG') markPhoto(e.target); }, true);
-addEventListener('error', e => { if (e.target.tagName === 'IMG') e.target.remove(); }, true);
+addEventListener('error', e => { if (e.target.tagName === 'IMG' && e.target.src) e.target.remove(); }, true);
 // картинки из кэша и lazy-загрузка могут завершиться без события в наш адрес —
 // фоновый досмотр раз в секунду, пока есть неотмеченные фото
-setInterval(() => $$('.ph-wrap:not(.ok) img').forEach(markPhoto), 1000);
+setInterval(() => $$('.ph-wrap:not(.ok) img,img.tim:not(.shown)').forEach(markPhoto), 1000);
 
 // один бейдж на карточку
 function dealBadge(r) {
@@ -189,10 +291,11 @@ function dealBadge(r) {
 
 function scoreCls(s) { return s >= 67 ? 'good' : s >= 34 ? 'mid' : 'bad'; }
 
-function scoreHTML(r) {
+/* оценка состава углом на фото — в ленте пилюля под ценой ломала ритм карточек */
+function scoreCorner(r) {
   if (r.s == null) return '';
-  const s = Math.max(0, Math.min(100, Math.round(r.s))), k = scoreCls(s);
-  return `<span class="score ${k}"><span class="lbl">состав</span>${s}</span>`;
+  const s = Math.max(0, Math.min(100, Math.round(r.s)));
+  return `<span class="s-abs ${scoreCls(s)}" title="Оценка состава">${s}</span>`;
 }
 
 /* кнопка «+ В список» превращается в степпер */
@@ -216,14 +319,13 @@ function itemHTML(r) {
   // на карточке либо бейдж выгоды, либо метка отсутствия — вместе они бессмысленны
   const corner = !r.st ? '<span class="oos-abs">нет в наличии</span>'
     : (b ? `<span class="badge-abs">${b}</span>` : '');
-  const heart = `<button type="button" class="heart${isFav(r.c) ? ' on' : ''}" data-fav="${esc(r.c)}" aria-label="Любимое">${isFav(r.c) ? '♥' : '♡'}</button>` + corner;
+  const heart = `<button type="button" class="heart${isFav(r.c) ? ' on' : ''}" data-fav="${esc(r.c)}" aria-label="Любимое">${isFav(r.c) ? '♥' : '♡'}</button>` + corner + scoreCorner(r);
   return `<article class="card${r.st ? '' : ' oos'}" data-c="${esc(r.c)}">
     ${photoHTML(r, heart)}
     ${rateHTML(r)}
     <div class="name">${esc(r.t)}</div>
     <div class="price${r.op && r.op > r.p ? ' sale' : ''}"><span>${fmt(r.p)} ₽</span>${r.op && r.op > r.p ? `<span class="old">${fmt(r.op)} ₽</span>` : ''}</div>
     <div class="ppk">${r.pk ? `${fmt(r.pk)} ₽/${esc(r.un || 'кг')}` : ''}</div>
-    <div class="score-row">${scoreHTML(r)}</div>
     <div class="act">${actHTML(r.c)}</div></article>`;
 }
 
@@ -275,6 +377,9 @@ addEventListener('scroll', () => {
   $('#top').classList.toggle('stuck', scrollY > 4 && !isRoot());
   if (innerHeight + scrollY > document.body.scrollHeight - 600) more();
 });
+/* кнопка «наверх» — слева над таб-баром, появляется после 800 px */
+addEventListener('scroll', () => $('#to-top').classList.toggle('on', scrollY > 800), { passive: true });
+$('#to-top').addEventListener('click', () => scrollTo({ top: 0, behavior: 'smooth' }));
 
 /* обновить счётчики в уже отрисованном DOM, не перерисовывая ленту */
 function syncQty(code) {
@@ -292,7 +397,8 @@ function syncQty(code) {
 function addToCart(code, delta) {
   const k = String(code);
   const n = (cart[k] || 0) + delta;
-  if (n <= 0) delete cart[k]; else cart[k] = n;
+  if (n <= 0) { if (cart[k]) pendRemove(k, cart[k]); delete cart[k]; }
+  else { dropPending(k); cart[k] = n; }
   LS.set('cart', cart);
   syncQty(k);
   if (tab === 'cart') renderCart();
@@ -412,7 +518,7 @@ async function openCard(code) {
       : '<p class="hint">Состав не указан</p>'}
     <div class="sec-h">Похожие в «${esc(r.k2 || r.k1 || 'категории')}» — качество за рубль</div>
     ${sim.length ? `<div class="sim">${sim.map(x => `<div class="s-card" data-c="${esc(x.c)}">
-        ${photoHTML(x, x.s != null ? `<span class="badge-abs">${scoreHTML(x)}</span>` : '')}
+        ${photoHTML(x, scoreCorner(x))}
         <div class="st">${esc(x.t)}</div>
         <div class="sp">${fmt(x.p)} ₽${x.op && x.op > x.p ? `<span class="old">${fmt(x.op)} ₽</span>` : ''}</div></div>`).join('')}</div>`
       : '<p class="hint">нет похожих в наличии</p>'}
@@ -424,7 +530,7 @@ async function openCard(code) {
 function closeCard() { $('#card-overlay').hidden = true; curCode = null; }
 
 $('#card-overlay').addEventListener('click', e => { if (e.target.id === 'card-overlay') closeCard(); });
-addEventListener('keydown', e => { if (e.key === 'Escape') closeCard(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') { closeSort(); closeCard(); } });
 
 // клики внутри шторки — одна делегация
 $('#card').addEventListener('click', e => {
@@ -467,12 +573,42 @@ function updateCartBadge() {
   $('#cart-n').hidden = !n;
   $('#cart-n').textContent = n;
 }
+/* ---------- «уходящие» строки списка ----------
+   Убрали последнюю штуку — строка не исчезает мгновенно, а ~5 секунд висит
+   приглушённой с кнопкой «Вернуть»: промах по «−» перестал быть необратимым. */
+const UNDO_MS = 5000;
+let pending = new Map();   // code -> {qty, t}
+function pendRemove(code, n) {
+  const k = String(code);
+  clearTimeout(pending.get(k)?.t);
+  pending.set(k, { qty: n, t: setTimeout(() => { pending.delete(k); if (tab === 'cart') renderCart(); }, UNDO_MS) });
+}
+function undoRemove(code) {
+  const k = String(code), p = pending.get(k);
+  if (!p) return;
+  clearTimeout(p.t); pending.delete(k);
+  cart[k] = p.qty; LS.set('cart', cart);
+  renderCart(); syncQty(k);
+}
+function dropPending(code) {
+  const k = String(code), p = pending.get(k);
+  if (p) { clearTimeout(p.t); pending.delete(k); }
+}
+
 function renderCart() {
   const codes = Object.keys(cart);
+  const rows = [...codes, ...[...pending.keys()].filter(c => !cart[c])];
   const total = cartTotal();
-  $('#cart-items').innerHTML = codes.map(c => {
+  $('#cart-items').innerHTML = rows.map(c => {
     const r = BYCODE.get(c);
     if (!r) return '';
+    const gone = !cart[c];
+    if (gone) return `<div class="citem gone" data-c="${esc(c)}">
+      ${photoHTML(r)}
+      <div><div class="ti">${esc(r.t)}</div>
+        <div class="crow"><span class="undo-t">убрали из списка</span>
+          <button type="button" class="undo" data-undo="${esc(c)}">Вернуть</button></div></div>
+      <i class="undo-bar"></i></div>`;
     return `<div class="citem${r.st ? '' : ' oos'}" data-c="${esc(c)}">
       ${photoHTML(r)}
       <div><div class="ti">${esc(r.t)}</div>
@@ -505,7 +641,10 @@ function renderCart() {
 $('#budget').addEventListener('input', e => { LS.set('budget', +e.target.value || null); renderCart(); });
 $('#cart-clear').addEventListener('click', e => {
   const b = e.currentTarget;
-  if (b.dataset.sure) { cart = {}; LS.set('cart', cart); renderCart(); updateCartBadge(); return; }
+  if (b.dataset.sure) {
+    pending.forEach(p => clearTimeout(p.t)); pending.clear();
+    cart = {}; LS.set('cart', cart); renderCart(); updateCartBadge(); return;
+  }
   b.dataset.sure = '1'; b.textContent = 'Точно очистить?'; b.classList.add('danger');
   setTimeout(() => { delete b.dataset.sure; b.textContent = 'Очистить список'; b.classList.remove('danger'); }, 3000);
 });
@@ -517,7 +656,17 @@ function renderFav() {
   const cb = $('#fav-clear');
   cb.hidden = !rows.length;
   cb.textContent = 'очистить всё'; delete cb.dataset.sure;
-  $('#fav-items').innerHTML = rows.map(itemHTML).join('')
+  // любимое копится вперемешку по всему каталогу — разбиваем заголовками разделов
+  const by = new Map();
+  for (const r of rows) {
+    const k = r.k1 || 'Прочее';
+    if (!by.has(k)) by.set(k, []);
+    by.get(k).push(r);
+  }
+  $('#fav-items').innerHTML = [...by.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([k, rs]) => `<h3 class="grp-h fav-grp">${esc(k)}</h3>
+      <div class="grid">${rs.map(itemHTML).join('')}</div>`).join('')
     || `<div class="empty">${emptyHTML(ICON_HEART, 'Пока нет любимого', 'Отмечайте товары ♡ на карточке')}</div>`;
 }
 $('#fav-view').addEventListener('click', e => {
@@ -576,6 +725,9 @@ function handleCardClicks(e) {
 $('#list').addEventListener('click', handleCardClicks);
 $('#cart-items').addEventListener('click', e => {
   if (e.target.closest('#to-search')) return switchTab('catalog');
+  const u = e.target.closest('[data-undo]');
+  if (u) { e.stopPropagation(); return undoRemove(u.dataset.undo); }
+  if (e.target.closest('.citem.gone')) return;
   handleCardClicks(e);
 });
 $('#empty').addEventListener('click', e => {
@@ -618,7 +770,7 @@ $('#tiles').addEventListener('click', e => {
   sub = '';
   // незакрытый поисковый запрос иначе «съедал» весь раздел и экран выглядел пустым
   $('#q').value = ''; $('#q-clear').hidden = true;
-  if (b.dataset.deals) { onlyDeals = true; cat = ''; $('#sort').value = 'rel'; }
+  if (b.dataset.deals) { onlyDeals = true; cat = ''; }
   else { cat = b.dataset.tile; onlyDeals = false; }
   renderHead();
   render();
@@ -633,7 +785,6 @@ $('#q-clear').addEventListener('click', () => {
   $('#q').value = ''; $('#q-clear').hidden = true;
   renderHead(); render();
 });
-$('#sort').addEventListener('change', render);
 $('#stock').addEventListener('change', render);
 
 boot();
