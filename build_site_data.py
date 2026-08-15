@@ -115,6 +115,11 @@ def collect_history():
         files[os.path.basename(p)[5:15]] = p
     for p in glob.glob("output/????-??-??.parquet"):
         files.setdefault(os.path.basename(p)[:10], p)
+    # Снимки цен (snapshot_prices.py) — только листинги, без карточек. Они
+    # дешёвые и потому ежедневные, но полный срез за ту же дату богаче:
+    # в снимке нет товаров, которых сейчас нет в наличии.
+    for p in glob.glob("output/snapshots/????-??-??.parquet"):
+        files.setdefault(os.path.basename(p)[:10], p)
     for date in sorted(files):
         df = pd.read_parquet(files[date], columns=["code", "price", "old_price", "in_stock"])
         for code, price, old, stock in df.itertuples(index=False):
