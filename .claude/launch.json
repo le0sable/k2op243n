@@ -6,6 +6,12 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8766", "--directory", "web"],
       "port": 8766
+    },
+    {
+      "name": "design-kit",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8767", "--directory", "design"],
+      "port": 8767
     }
   ]
 }

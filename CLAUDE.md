@@ -59,6 +59,7 @@ python export_parquet.py output/food-ГГГГ-ММ-ДД    # Parquet для ан
 | [build_site_data.py](build_site_data.py) | parquet → `web/data/` (индекс, шарды деталей, скоринг состава, история цен) |
 | [update_daily.ps1](update_daily.ps1) | ежедневный цикл: парс → parquet → данные сайта → push в gh-pages |
 | `web/` | статическая PWA без сборщиков, локально: `python -m http.server 8766 --directory web` (launch-конфиг `korzinka`) |
+| [build_design_kit.py](build_design_kit.py) | `web/style.css` + шаблоны `app.js` → `design/`: дизайн-кит для Claude Design (24 самодостаточные карточки без сети + иконки-ассеты). Пересобирать после правок стилей |
 
 Скоринг состава: Е-добавки по классам вредности (таблица в `build_site_data.py`),
 флаги (сахар в первых 3 ингредиентах, пальма, усилители, подсластители), длина

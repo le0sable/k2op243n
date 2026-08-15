@@ -13,3 +13,6 @@ __pycache__/
 .venv/
 venv/
 web.zip
+
+# Дизайн-кит для Claude Design — пересобирается build_design_kit.py
+design/
