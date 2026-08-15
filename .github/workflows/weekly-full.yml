@@ -1,0 +1,50 @@
+name: Полный пищевой срез
+
+# Раз в неделю, ночь с воскресенья на понедельник, 03:00 по Симферополю.
+# Снимок цен ежедневный и дешёвый, но он идёт по листингам, а там нет ни
+# состава, ни КБЖУ, ни товаров, которых сейчас нет в наличии. За этим нужен
+# обход карточек — он долгий (около 20 минут), потому и еженедельный.
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-full
+  cancel-in-progress: false
+
+jobs:
+  full:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Обойти пищевые категории
+        run: python parse_food_categories.py
+
+      - name: Экспорт в Parquet
+        run: |
+          dir=$(ls -d output/food-????-??-?? | sort | tail -1)
+          python export_parquet.py "$dir"
+
+      - name: Собрать данные сайта
+        run: python build_site_data.py
+
+      # Публикация появится вместе с хостингом на Cloudflare Pages.
+      # Пока результат складывается артефактом — его видно и можно скачать.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site-data
+          path: web/data/
+          retention-days: 30
