@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400..800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#F0EFEC}
+  *{box-sizing:border-box}
+  a{color:#009860}
+  a:hover{color:#00794C}
+  *{scrollbar-width:none;-ms-overflow-style:none}
+  *::-webkit-scrollbar{width:0;height:0}
+  @keyframes shimmer{0%,100%{opacity:1}50%{opacity:.45}}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  @keyframes screenIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  @keyframes headIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  @keyframes tileIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+  @keyframes rowIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  @keyframes sheetUp{from{transform:translateY(100%)}to{transform:none}}
+  @keyframes sheetDown{from{transform:none}to{transform:translateY(100%)}}
+  @keyframes fadeOut{from{opacity:1}to{opacity:0}}
+  @keyframes sweep{from{background-position:180% 0}to{background-position:-80% 0}}
+  @keyframes slideInR{from{opacity:0;transform:translateX(22px)}to{opacity:1;transform:none}}
+  @keyframes slideInL{from{opacity:0;transform:translateX(-22px)}to{opacity:1;transform:none}}
+  @keyframes barPulse{0%,100%{opacity:1}50%{opacity:.5}}
+  @keyframes popIn{from{opacity:0;transform:scale(.55)}62%{transform:scale(1.08)}to{opacity:1;transform:scale(1)}}
+  @keyframes qtyPop{from{opacity:0;transform:translateY(5px) scale(.75)}to{opacity:1;transform:none}}
+  @keyframes heartPop{0%{transform:scale(1)}35%{transform:scale(1.32)}60%{transform:scale(.92)}100%{transform:scale(1)}}
+  @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms !important;transition-duration:.01ms !important}}
+</style>
+</helmet>
+
+<div style="padding:40px;display:flex;gap:28px;align-items:flex-start;font-family:'Golos Text',system-ui,sans-serif;color:#212120">
+
+  <x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" width="{{ frameW }}" height="{{ frameH }}" hint-size="428px,908px">
+    <div style="position:relative;width:100%;height:812px;overflow:hidden;background:#fff;display:flex;flex-direction:column;font-family:'Golos Text',system-ui,sans-serif;color:#212120">
+
+      <sc-if value="{{ isOnboarding }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:1;min-height:0;overflow:auto;padding:28px 20px 20px;display:flex;flex-direction:column;gap:22px;animation:screenIn .32s ease-out both">
+          <div style="display:flex;flex-direction:column;gap:8px;animation:screenIn .38s ease-out both;animation-delay:40ms">
+            <h1 style="margin:0;font-size:28px;font-weight:800;letter-spacing:-.02em;line-height:1.15;text-wrap:pretty">Список покупок, который считает деньги</h1>
+            <p style="margin:0;font-size:14px;line-height:1.55;color:#5C5B58;text-wrap:pretty">Цена за килограмм рядом с ценой, оценка состава буквой, итог списка против бюджета.</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;animation:screenIn .38s ease-out both;animation-delay:110ms">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8A8880">Бюджет на закупку</span>
+            <div style="display:flex;gap:4px;background:rgba(101,92,78,.1);border-radius:16px;padding:3px">
+              <div style="position:relative;flex:1;display:flex">
+                <i style="position:absolute;top:0;bottom:0;left:{{ budgetLeft }};width:25%;background:#212120;border-radius:13px;transition:left .34s cubic-bezier(.2,.9,.3,1)"></i>
+                <sc-for list="{{ budgets }}" as="b" hint-placeholder-count="3">
+                  <button onClick="{{ b.pick }}" style="position:relative;flex:1;min-height:38px;border:0;border-radius:13px;cursor:pointer;font:700 14px 'Golos Text',sans-serif;font-variant-numeric:tabular-nums;background:none;color:{{ b.ink }};transition:color .24s ease-out">{{ b.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <sc-if value="{{ customBudget }}" hint-placeholder-val="{{ false }}">
+              <input type="number" step="100" value="{{ budgetValue }}" onChange="{{ setBudget }}" style="min-height:44px;border:1px solid #EBEAE7;border-radius:14px;padding:0 14px;font:700 15px 'Golos Text',sans-serif;color:#212120;font-variant-numeric:tabular-nums;width:100%;animation:popIn .22s ease-out both" />
+            </sc-if>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;animation:screenIn .38s ease-out both;animation-delay:180ms">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8A8880">Чего не показывать</span>
+            <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px">
+              <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="4">
+                <button onClick="{{ s.add }}" style="flex:0 0 auto;white-space:nowrap;min-height:36px;border-radius:16px;padding:0 12px;font:500 13px 'Golos Text',sans-serif;cursor:pointer;border:{{ s.border }};background:{{ s.bg }};color:{{ s.ink }};transition:background .22s ease-out,color .22s ease-out,transform .14s ease-out" style-active="transform:scale(.95)">{{ s.label }}</button>
+              </sc-for>
+            </div>
+            <p style="margin:0;font-size:12px;color:#8A8880;line-height:1.5">Позже это можно поменять в «Моё».</p>
+          </div>
+          <button onClick="{{ finishOnboarding }}" style="margin-top:auto;min-height:52px;border:0;border-radius:16px;background:#212120;color:#fff;font:700 15px 'Golos Text',sans-serif;cursor:pointer;transition:transform .14s ease-out,filter .18s ease-out" style-active="transform:scale(.98);filter:brightness(1.25)">Начать</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isCatalog }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:12px 16px 8px;animation:headIn .28s ease-out both"><span style="font-size:20px;font-weight:800;letter-spacing:-.01em">Каталог</span></div>
+        <div style="flex:1;min-height:0;overflow:auto;padding:0 16px 76px;animation:{{ enterAnim }}">
+          <sc-for list="{{ counters }}" as="c" hint-placeholder-count="3">
+            <div style="display:flex;flex-direction:column;gap:8px;padding-bottom:14px">
+              <div style="font-size:19px;font-weight:800;letter-spacing:-.01em">{{ c.title }}</div>
+              <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;grid-auto-rows:128px">
+                <sc-for list="{{ c.tiles }}" as="t" hint-placeholder-count="4">
+                  <button onClick="{{ t.open }}" style="grid-column:span {{ t.span }};border:0;border-radius:14px;background:{{ c.bg }};padding:0;cursor:pointer;font-family:'Golos Text',sans-serif;text-align:left;overflow:hidden;display:grid;grid-template-rows:44px 84px;animation:tileIn .34s ease-out both;animation-delay:{{ t.delay }};transition:transform .16s ease-out,filter .16s ease-out" style-active="filter:brightness(.96);transform:scale(.975)">
+                    <span style="padding:10px 10px 4px;font-size:13px;font-weight:600;line-height:1.25;color:#212120">{{ t.name }}</span>
+                    <span style="display:block;height:84px"></span>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isFeed }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:8px 16px 6px;animation:headIn .26s ease-out both">
+          <div style="overflow:hidden;transition:max-height .3s ease-out,opacity .22s ease-out;max-height:{{ headH }};opacity:{{ headOp }}">
+            <div style="display:flex;align-items:center;gap:4px;margin-left:-8px;padding:2px 0 8px">
+              <button onClick="{{ backToCatalog }}" style="width:36px;height:36px;border:0;background:none;cursor:pointer;font:400 26px/1 'Golos Text',sans-serif;color:#212120">‹</button>
+              <span style="font-size:20px;font-weight:800;letter-spacing:-.01em">{{ feedTitle }}</span>
+            </div>
+            <div style="position:relative;padding-bottom:8px;animation:fadeIn .24s ease-out both">
+              <input value="{{ query }}" onInput="{{ setQuery }}" placeholder="Поиск в категории" style="width:100%;min-height:40px;border:0;border-radius:16px;background:rgba(101,92,78,.1);padding:0 38px 0 14px;font:400 14px 'Golos Text',sans-serif;color:#212120;outline:none;transition:background .22s ease-out,box-shadow .22s ease-out" style-focus="background:#F5F4F2;box-shadow:inset 0 0 0 2px #212120" />
+              <sc-if value="{{ query }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ clearQuery }}" style="position:absolute;right:2px;top:2px;width:36px;height:36px;border:0;background:none;color:#8A8880;font:400 14px 'Golos Text',sans-serif;cursor:pointer">✕</button>
+              </sc-if>
+            </div>
+          </div>
+          <div style="display:flex;gap:4px;background:rgba(101,92,78,.1);border-radius:16px;padding:3px">
+            <div style="position:relative;flex:1;display:flex">
+              <i style="position:absolute;top:0;bottom:0;left:{{ segLeft }};width:33.3333%;background:#fff;border-radius:13px;box-shadow:0 1px 3px rgba(33,32,31,.12);opacity:{{ segOp }};transition:left .34s cubic-bezier(.2,.9,.3,1),opacity .2s ease-out"></i>
+              <sc-for list="{{ segs }}" as="g" hint-placeholder-count="3">
+                <button onClick="{{ g.pick }}" style="position:relative;flex:1;min-height:34px;border:0;border-radius:13px;cursor:pointer;font:600 13px 'Golos Text',sans-serif;background:none;color:{{ g.ink }};transition:color .24s ease-out">{{ g.label }}</button>
+              </sc-for>
+            </div>
+            <button onClick="{{ openFilters }}" style="flex:0 0 auto;min-height:34px;border:0;border-radius:13px;background:none;color:#5C5B58;padding:0 10px;font:600 13px 'Golos Text',sans-serif;cursor:pointer">ещё</button>
+          </div>
+          <div style="overflow:hidden;transition:max-height .3s ease-out,opacity .22s ease-out;max-height:{{ chipsH }};opacity:{{ headOp }}">
+          <div style="display:flex;gap:8px;padding-top:8px">
+            <button onClick="{{ toggleStock }}" style="flex:0 0 auto;min-height:36px;border:0;border-radius:16px;padding:0 12px;font:500 13px 'Golos Text',sans-serif;cursor:pointer;background:{{ stockBg }};color:{{ stockInk }};transition:background .22s ease-out,color .22s ease-out,transform .14s ease-out" style-active="transform:scale(.95)">В наличии</button>
+            <button onClick="{{ toggleSale }}" style="flex:0 0 auto;min-height:36px;border:0;border-radius:16px;padding:0 12px;font:500 13px 'Golos Text',sans-serif;cursor:pointer;background:{{ saleBg }};color:{{ saleInk }};transition:background .22s ease-out,color .22s ease-out,transform .14s ease-out" style-active="transform:scale(.95)">Со скидкой</button>
+            <sc-if value="{{ gradeChip }}" hint-placeholder-val="{{ false }}">
+              <button onClick="{{ clearGrade }}" style="flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:36px;border:0;border-radius:16px;padding:0 8px 0 12px;font:500 13px 'Golos Text',sans-serif;cursor:pointer;background:#212120;color:#fff;animation:popIn .22s ease-out both">{{ gradeChip }} <b style="font-weight:400;font-size:15px">✕</b></button>
+            </sc-if>
+          </div>
+          <p style="margin:6px 0 0;font-size:12px;color:#8A8880;font-variant-numeric:tabular-nums">{{ sortLabel }} · найдено {{ foundCount }}</p>
+          </div>
+        </div>
+        <div onScroll="{{ onFeedScroll }}" style="flex:1;min-height:0;overflow:auto;padding:10px 16px 76px;animation:{{ enterAnim }}">
+          <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}">
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 8px">
+              <sc-for list="{{ skeletons }}" as="k" hint-placeholder-count="6">
+                <div style="display:flex;flex-direction:column;animation:fadeIn .3s ease-out both;animation-delay:{{ k.delay }}">
+                  <div style="aspect-ratio:1/1;background:linear-gradient(100deg,#F0EFEC 30%,#E4E3DE 45%,#F0EFEC 60%);background-size:260% 100%;animation:sweep 1.5s linear infinite;animation-delay:{{ k.delay }}"></div>
+                  <i style="display:block;height:11px;border-radius:4px;background:linear-gradient(100deg,#F0EFEC 30%,#E4E3DE 45%,#F0EFEC 60%);background-size:260% 100%;animation:sweep 1.5s linear infinite;animation-delay:{{ k.delay }};margin-top:10px"></i>
+                  <i style="display:block;height:11px;width:62%;border-radius:4px;background:linear-gradient(100deg,#F0EFEC 30%,#E4E3DE 45%,#F0EFEC 60%);background-size:260% 100%;animation:sweep 1.5s linear infinite;animation-delay:{{ k.delay }};margin-top:6px"></i>
+                  <i style="display:block;height:14px;width:44%;border-radius:5px;background:linear-gradient(100deg,#EBEAE7 30%,#DEDCD6 45%,#EBEAE7 60%);background-size:260% 100%;animation:sweep 1.5s linear infinite;animation-delay:{{ k.delay }};margin-top:10px"></i>
+                  <i style="display:block;height:10px;width:54%;border-radius:4px;background:linear-gradient(100deg,#F0EFEC 30%,#E4E3DE 45%,#F0EFEC 60%);background-size:260% 100%;animation:sweep 1.5s linear infinite;animation-delay:{{ k.delay }};margin-top:6px"></i>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ feedEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:20px 0;display:flex;flex-direction:column;gap:14px;animation:screenIn .3s ease-out both">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <b style="font-size:19px;font-weight:800;letter-spacing:-.01em">Ничего не нашлось</b>
+                <span style="font-size:13px;color:#5C5B58;line-height:1.5">Слишком много условий сразу. Снимите одно.</span>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <sc-for list="{{ activeFilters }}" as="f" hint-placeholder-count="2">
+                  <button onClick="{{ f.drop }}" style="display:inline-flex;align-items:center;gap:6px;min-height:36px;border:0;border-radius:16px;background:#212120;color:#fff;padding:0 8px 0 12px;font:500 13px 'Golos Text',sans-serif;cursor:pointer">{{ f.label }} <b style="font-weight:400;font-size:15px">✕</b></button>
+                </sc-for>
+              </div>
+              <button onClick="{{ dropAllFilters }}" style="min-height:48px;border:0;border-radius:16px;background:rgba(101,92,78,.1);color:#212120;font:700 15px 'Golos Text',sans-serif;cursor:pointer">Сбросить все условия</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ feedVisible }}" hint-placeholder-val="{{ true }}">
+            <div key="{{ gridKey }}" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 8px;grid-auto-rows:auto">
+              <sc-for list="{{ feed }}" as="p" hint-placeholder-count="6">
+                <div style="display:grid;grid-template-rows:subgrid;gap:0;grid-row:span {{ cardSpan }};opacity:{{ p.opacity }};animation:tileIn .34s ease-out both;animation-delay:{{ p.delay }};transition:opacity .25s ease-out">
+                  <div onClick="{{ p.open }}" style="position:relative;aspect-ratio:1/1;background:#F5F4F2;cursor:pointer;transition:filter .18s ease-out" style-active="filter:brightness(.97)">
+                    <span style="position:absolute;left:5px;top:5px;width:28px;height:28px;border-radius:9px;background:{{ p.gradeBg }};color:{{ p.gradeInk }};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;transition:background .3s ease-out">{{ p.grade }}</span>
+                    <sc-if value="{{ p.discount }}" hint-placeholder-val="{{ true }}">
+                      <span style="position:absolute;left:5px;bottom:5px;display:flex;flex-direction:column;gap:3px;align-items:flex-start">
+                        <span style="background:#212120;color:#fff;border-radius:8px;padding:4px 7px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums">{{ p.save }}</span>
+                        <span style="background:#EF544A;color:#fff;border-radius:8px;padding:4px 7px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums">{{ p.discount }}</span>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ p.oos }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:5px;bottom:5px;background:rgba(33,32,31,.72);color:#fff;border-radius:8px;padding:3px 7px;font-size:11px;font-weight:600">Нет в наличии</span></sc-if>
+                    <sc-if value="{{ p.blockLabel }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:5px;right:5px;bottom:5px;background:rgba(33,32,31,.78);color:#fff;border-radius:8px;padding:4px 7px;font-size:11px;font-weight:600">{{ p.blockLabel }}</span></sc-if>
+                    <sc-if value="{{ p.showAdd }}" hint-placeholder-val="{{ true }}">
+                      <button onClick="{{ p.add }}" style="position:absolute;right:4px;bottom:4px;width:36px;height:36px;border:0;border-radius:50%;background:#212120;color:#fff;font:700 20px/1 'Golos Text',sans-serif;cursor:pointer;box-shadow:0 2px 8px rgba(33,32,31,.24);animation:popIn .2s ease-out both;transition:transform .13s ease-out" style-active="transform:scale(.88)">+</button>
+                    </sc-if>
+                    <sc-if value="{{ p.hasQty }}" hint-placeholder-val="{{ false }}">
+                      <div style="position:absolute;right:4px;bottom:4px;display:flex;align-items:center;background:#212120;border-radius:18px;height:36px;padding:0 2px">
+                        <button onClick="{{ p.dec }}" style="width:32px;height:32px;border:0;border-radius:50%;background:none;color:#fff;font:700 18px/1 'Golos Text',sans-serif;cursor:pointer;transition:transform .13s ease-out" style-active="transform:scale(.8)">−</button>
+                        <span key="{{ p.qtyKey }}" style="min-width:18px;text-align:center;color:#fff;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;animation:qtyPop .22s ease-out both">{{ p.qty }}</span>
+                        <button onClick="{{ p.add }}" style="width:32px;height:32px;border:0;border-radius:50%;background:none;color:#fff;font:700 18px/1 'Golos Text',sans-serif;cursor:pointer;transition:transform .13s ease-out" style-active="transform:scale(.8)">+</button>
+                      </div>
+                    </sc-if>
+                  </div>
+                  <div onClick="{{ p.open }}" style="font-size:13px;line-height:1.35;margin-top:8px;cursor:pointer">{{ p.name }}</div>
+                  <div style="display:flex;align-items:baseline;gap:6px;margin-top:4px">
+                    <span style="font-size:19px;font-weight:800;letter-spacing:-.02em;color:{{ p.priceColor }};font-variant-numeric:tabular-nums">{{ p.price }}</span>
+                    <s style="font-size:13px;color:#999;font-variant-numeric:tabular-nums">{{ p.old }}</s>
+                  </div>
+                  <div style="font-size:12px;color:#999;margin-top:2px;font-variant-numeric:tabular-nums">{{ p.unit }}</div>
+                  <sc-if value="{{ p.blockLabel }}" hint-placeholder-val="{{ false }}">
+                    <button onClick="{{ p.allow }}" style="margin-top:8px;min-height:34px;border:0;border-radius:14px;background:rgba(101,92,78,.1);font:600 12px 'Golos Text',sans-serif;cursor:pointer">Показать всё равно</button>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isList }}" hint-placeholder-val="{{ false }}">
+        <sc-if value="{{ listEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;min-height:0;overflow:auto;padding:20px 16px 76px;display:flex;flex-direction:column;gap:14px;animation:screenIn .32s ease-out both">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <b style="font-size:19px;font-weight:800;letter-spacing:-.01em">Список пока пуст</b>
+              <span style="font-size:13px;color:#5C5B58;line-height:1.5">Начните с заготовки, повторите завершённую закупку или добавляйте товары из каталога.</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <sc-for list="{{ emptyActions }}" as="p" hint-placeholder-count="2">
+                <button onClick="{{ p.add }}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:52px;border:1px solid #EBEAE7;border-radius:16px;background:none;padding:0 14px;cursor:pointer;font-family:'Golos Text',sans-serif;text-align:left;animation:rowIn .32s ease-out both;transition:background .2s ease-out,transform .15s ease-out" style-active="transform:scale(.985);background:#F5F4F2">
+                  <span style="display:flex;flex-direction:column;gap:1px"><b style="font-size:14px;font-weight:700">{{ p.name }}</b><span style="font-size:12px;color:#8A8880;font-variant-numeric:tabular-nums">{{ p.meta }}</span></span>
+                  <span style="font-size:20px;color:#B9B7B2">›</span>
+                </button>
+              </sc-for>
+            </div>
+            <button onClick="{{ goCatalog }}" style="min-height:48px;border:0;border-radius:16px;background:#212120;color:#fff;font:700 15px 'Golos Text',sans-serif;cursor:pointer">Открыть каталог</button>
+          </div>
+        </sc-if>
+        <sc-if value="{{ listFilled }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:12px 16px 10px;border-bottom:1px solid #EBEAE7;display:flex;flex-direction:column;gap:8px;animation:{{ enterAnim }}">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <button onClick="{{ openLists }}" style="display:flex;align-items:center;gap:6px;border:0;background:none;padding:0;cursor:pointer;font:800 20px 'Golos Text',sans-serif;letter-spacing:-.01em;color:#212120">{{ activeName }} <span style="display:inline-flex;align-items:center;font-size:11px;line-height:1;color:#8A8880;position:relative;top:1px">▾</span></button>
+              <button onClick="{{ toggleShopMode }}" style="min-height:34px;border:0;border-radius:16px;padding:0 12px;font:600 12px 'Golos Text',sans-serif;cursor:pointer;background:{{ shopBg }};color:{{ shopInk }};transition:background .24s ease-out,color .24s ease-out,transform .14s ease-out" style-active="transform:scale(.95)">{{ shopLabel }}</button>
+            </div>
+            <div style="display:flex;align-items:baseline;justify-content:space-between"><b style="font-size:24px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ total }}</b><span style="font-size:13px;font-weight:600;color:{{ leftColor }};font-variant-numeric:tabular-nums;transition:color .3s ease-out">{{ leftLabel }}</span></div>
+            <div style="height:8px;border-radius:4px;background:rgba(101,92,78,.12);overflow:hidden"><i style="display:block;height:8px;border-radius:4px;background:{{ barColor }};width:{{ barWidth }};transition:width .18s linear,background .3s ease-out;animation:{{ barAnim }}"></i></div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="background:rgba(101,92,78,.1);border-radius:6px;padding:2px 6px;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums">экономия {{ saved }}</span>
+              <span style="font-size:12px;color:#8A8880;font-variant-numeric:tabular-nums">{{ itemsCount }} · бюджет {{ budgetLabel }}</span>
+            </div>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:4px 16px 76px">
+            <sc-for list="{{ listItems }}" as="i" hint-placeholder-count="5">
+              <div style="display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid #EBEAE7;animation:rowIn .3s ease-out both">
+                <sc-if value="{{ shopMode }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ i.check }}" style="width:24px;height:24px;flex:0 0 auto;border:0;border-radius:8px;cursor:pointer;background:{{ i.boxBg }};color:#fff;font:700 13px/1 'Golos Text',sans-serif;animation:popIn .22s ease-out both;transition:background .22s ease-out,transform .14s ease-out" style-active="transform:scale(.88)">{{ i.tick }}</button>
+                </sc-if>
+                <div onClick="{{ i.open }}" style="width:60px;height:60px;flex:0 0 auto;background:#F5F4F2;border-radius:8px;position:relative;cursor:pointer"><span style="position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:7px;background:{{ i.gradeBg }};color:{{ i.gradeInk }};display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800">{{ i.grade }}</span></div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+                  <span style="font-size:13px;line-height:1.3;color:{{ i.nameColor }};text-decoration:{{ i.strike }};transition:color .25s ease-out">{{ i.name }}</span>
+                  <b style="font-size:15px;font-weight:800;letter-spacing:-.02em;color:{{ i.sumColor }};font-variant-numeric:tabular-nums;transition:color .25s ease-out">{{ i.sum }}</b>
+                  <span style="font-size:12px;color:#999;font-variant-numeric:tabular-nums">{{ i.sub }}</span>
+                </div>
+                <sc-if value="{{ i.pending }}" hint-placeholder-val="{{ false }}">
+                  <button onClick="{{ i.restore }}" style="flex:0 0 auto;min-height:36px;border:0;border-radius:18px;background:rgba(101,92,78,.1);color:#212120;padding:0 14px;font:700 13px 'Golos Text',sans-serif;cursor:pointer;animation:popIn .22s ease-out both">Вернуть</button>
+                </sc-if>
+                <sc-if value="{{ i.active }}" hint-placeholder-val="{{ true }}">
+                  <div style="flex:0 0 auto;display:flex;align-items:center;background:rgba(101,92,78,.1);border-radius:18px;height:36px;padding:0 2px">
+                    <button onClick="{{ i.dec }}" style="width:32px;height:32px;border:0;border-radius:50%;background:none;font:700 17px/1 'Golos Text',sans-serif;cursor:pointer;transition:transform .13s ease-out" style-active="transform:scale(.8)">−</button>
+                    <span key="{{ i.qtyKey }}" style="min-width:18px;text-align:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;animation:qtyPop .22s ease-out both">{{ i.qty }}</span>
+                    <button onClick="{{ i.inc }}" style="width:32px;height:32px;border:0;border-radius:50%;background:none;font:700 17px/1 'Golos Text',sans-serif;cursor:pointer;transition:transform .13s ease-out" style-active="transform:scale(.8)">+</button>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+          <sc-if value="{{ shopMode }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:10px 16px 12px;border-top:1px solid #EBEAE7;display:flex;flex-direction:column;gap:6px;animation:sheetUp .3s cubic-bezier(.2,.85,.3,1) both">
+              <button onClick="{{ finishTrip }}" style="min-height:50px;border:0;border-radius:16px;background:#009860;color:#fff;font:700 15px 'Golos Text',sans-serif;cursor:pointer">Закупка завершена</button>
+              <span style="font-size:12px;color:#8A8880;text-align:center;font-variant-numeric:tabular-nums">{{ checkedLabel }} · список уйдёт в историю</span>
+            </div>
+          </sc-if>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{ isFav }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:12px 16px 8px;animation:headIn .28s ease-out both"><span style="font-size:20px;font-weight:800;letter-spacing:-.01em">Избранное</span></div>
+        <div style="flex:1;min-height:0;overflow:auto;padding:0 16px 76px;animation:screenIn .32s ease-out both">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8A8880;padding:6px 0 8px">Отдельные товары · {{ favCount }}</div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px 8px;grid-auto-rows:auto">
+            <sc-for list="{{ favTiles }}" as="p" hint-placeholder-count="4">
+              <div style="display:grid;grid-template-rows:subgrid;gap:0;grid-row:span 4">
+                <div onClick="{{ p.open }}" style="position:relative;aspect-ratio:1/1;background:#F5F4F2;cursor:pointer">
+                  <span style="position:absolute;left:5px;top:5px;width:28px;height:28px;border-radius:9px;background:{{ p.gradeBg }};color:{{ p.gradeInk }};display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800">{{ p.grade }}</span>
+                  <button onClick="{{ p.unfav }}" style="position:absolute;right:0;top:0;width:44px;height:44px;border:0;background:none;padding:0 0 6px 6px;cursor:pointer;color:{{ p.heartInk }};display:flex;align-items:center;justify-content:center;transform-origin:center;filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 6px #fff);transition:color .22s ease-out,transform .16s ease-out" style-active="transform:scale(.82)">
+                    <svg key="{{ p.heartKey }}" viewBox="0 0 24 24" width="24" height="24" fill="{{ p.heartFill }}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="transform-origin:center;animation:heartPop .4s ease-out both"><path d="M12 20s-7-4.6-7-9.2A4 4 0 0 1 12 8a4 4 0 0 1 7-2.8c0 4.6-7 14.8-7 14.8Z"></path></svg>
+                  </button>
+                  <sc-if value="{{ p.showAdd }}" hint-placeholder-val="{{ true }}">
+                    <button onClick="{{ p.add }}" style="position:absolute;right:4px;bottom:4px;width:36px;height:36px;border:0;border-radius:50%;background:#212120;color:#fff;font:700 20px/1 'Golos Text',sans-serif;cursor:pointer;animation:popIn .2s ease-out both;transition:transform .13s ease-out" style-active="transform:scale(.88)">+</button>
+                  </sc-if>
+                  <sc-if value="{{ p.hasQty }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;right:4px;bottom:4px;display:flex;align-items:center;background:#212120;border-radius:18px;height:36px;padding:0 2px">
+                      <button onClick="{{ p.dec }}" style="width:32px;height:32px;border:0;border-radius:50%;background:none;color:#fff;font:700 18px/1 'Golos Text',sans-serif;cursor:pointer;transition:transform .13s ease-out" style-active="transform:scale(.8)">−</button>
+                      <span key="{{ p.qtyKey }}" style="min-width:18px;text-align:center;color:#fff;font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;animation:qtyPop .22s ease-out both">{{ p.qty }}</span>
+                      <button onClick="{{ p.add }}" style="width:32px;height:32px;border:0;border-radius:50%;background:none;color:#fff;font:700 18px/1 'Golos Text',sans-serif;cursor:pointer;transition:transform .13s ease-out" style-active="transform:scale(.8)">+</button>
+                    </div>
+                  </sc-if>
+                </div>
+                <div style="font-size:13px;line-height:1.35;margin-top:8px">{{ p.name }}</div>
+                <div style="display:flex;align-items:baseline;gap:6px;margin-top:4px">
+                  <span style="font-size:19px;font-weight:800;letter-spacing:-.02em;color:{{ p.priceColor }};font-variant-numeric:tabular-nums">{{ p.price }}</span>
+                  <s style="font-size:13px;color:#999;font-variant-numeric:tabular-nums">{{ p.old }}</s>
+                </div>
+                <div style="font-size:12px;color:#999;margin-top:2px;font-variant-numeric:tabular-nums">{{ p.unit }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isMe }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:12px 16px 8px;animation:headIn .28s ease-out both"><span style="font-size:20px;font-weight:800;letter-spacing:-.01em">Моё</span></div>
+        <div style="flex:1;min-height:0;overflow:auto;padding:0 16px 76px;display:flex;flex-direction:column;gap:18px;animation:screenIn .32s ease-out both">
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8A8880">Бюджет на закупку</span>
+            <div style="display:flex;gap:4px;background:rgba(101,92,78,.1);border-radius:16px;padding:3px">
+              <div style="position:relative;flex:1;display:flex">
+                <i style="position:absolute;top:0;bottom:0;left:{{ budgetLeft }};width:25%;background:#212120;border-radius:13px;transition:left .34s cubic-bezier(.2,.9,.3,1)"></i>
+                <sc-for list="{{ budgets }}" as="b" hint-placeholder-count="3">
+                  <button onClick="{{ b.pick }}" style="position:relative;flex:1;min-height:36px;border:0;border-radius:13px;cursor:pointer;font:700 13px 'Golos Text',sans-serif;font-variant-numeric:tabular-nums;background:none;color:{{ b.ink }};transition:color .24s ease-out">{{ b.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <sc-if value="{{ customBudget }}" hint-placeholder-val="{{ false }}">
+              <input type="number" step="100" value="{{ budgetValue }}" onChange="{{ setBudget }}" style="min-height:44px;border:1px solid #EBEAE7;border-radius:14px;padding:0 14px;font:700 15px 'Golos Text',sans-serif;color:#212120;font-variant-numeric:tabular-nums;width:100%" />
+            </sc-if>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8A8880">Личные исключения</span>
+            <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:2px">
+              <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="4">
+                <button onClick="{{ s.add }}" style="flex:0 0 auto;white-space:nowrap;min-height:34px;border-radius:16px;padding:0 12px;font:500 13px 'Golos Text',sans-serif;cursor:pointer;border:{{ s.border }};background:{{ s.bg }};color:{{ s.ink }};transition:background .22s ease-out,color .22s ease-out,transform .14s ease-out" style-active="transform:scale(.95)">{{ s.label }}</button>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ excluded }}" as="e" hint-placeholder-count="2">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;border-bottom:1px solid #EBEAE7;animation:rowIn .28s ease-out both">
+                  <span style="display:flex;flex-direction:column;gap:1px;min-width:0"><b style="font-size:14px;font-weight:600">{{ e.name }}</b><span style="font-size:12px;color:#8A8880">{{ e.kind }}</span></span>
+                  <button onClick="{{ e.remove }}" style="width:32px;height:32px;flex:0 0 auto;border:0;border-radius:50%;background:rgba(101,92,78,.1);cursor:pointer;font:400 15px 'Golos Text',sans-serif">✕</button>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ noneExcluded }}" hint-placeholder-val="{{ false }}">
+              <p style="margin:0;font-size:13px;color:#8A8880;line-height:1.5">Пока ничего не скрыто. Нажмите подсказку выше или добавьте товар из его шторки.</p>
+            </sc-if>
+            <div style="font-size:13px;color:#5C5B58;font-variant-numeric:tabular-nums">{{ exclLabel }}</div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8A8880">История закупок</span>
+            <sc-if value="{{ noHistory }}" hint-placeholder-val="{{ true }}">
+              <p style="margin:0;font-size:13px;color:#8A8880;line-height:1.5">Пока пусто. Список уходит в историю, когда в режиме «В магазине» нажать «Закупка завершена».</p>
+            </sc-if>
+            <sc-for list="{{ history }}" as="h" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:52px;border-bottom:1px solid #EBEAE7;animation:rowIn .28s ease-out both">
+                <span style="display:flex;flex-direction:column;gap:1px"><b style="font-size:14px;font-weight:600">{{ h.date }}</b><span style="font-size:12px;color:#8A8880;font-variant-numeric:tabular-nums">{{ h.meta }}</span></span>
+                <button onClick="{{ h.repeat }}" style="min-height:36px;border:0;border-radius:16px;background:rgba(101,92,78,.1);padding:0 12px;font:600 13px 'Golos Text',sans-serif;cursor:pointer">Повторить</button>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8A8880">Что делать с исключённым</span>
+            <div style="display:flex;gap:4px;background:rgba(101,92,78,.1);border-radius:16px;padding:3px">
+              <div style="position:relative;flex:1;display:flex">
+                <i style="position:absolute;top:0;bottom:0;left:{{ modeLeft }};width:50%;background:#212120;border-radius:13px;transition:left .34s cubic-bezier(.2,.9,.3,1)"></i>
+                <button onClick="{{ modeHide }}" style="position:relative;flex:1;min-height:34px;border:0;border-radius:13px;cursor:pointer;font:600 13px 'Golos Text',sans-serif;background:none;color:{{ hideInk }};transition:color .24s ease-out">Скрывать</button>
+                <button onClick="{{ modeMark }}" style="position:relative;flex:1;min-height:34px;border:0;border-radius:13px;cursor:pointer;font:600 13px 'Golos Text',sans-serif;background:none;color:{{ markInk }};transition:color .24s ease-out">Помечать</button>
+              </div>
+            </div>
+            <p style="margin:0;font-size:12px;color:#8A8880;line-height:1.5;font-variant-numeric:tabular-nums">{{ modeNote }}</p>
+          </div>
+        </div>
+      </sc-if>
+
+
+      <sc-if value="{{ showTabs }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;border-top:1px solid #EBEAE7;background:#fff;position:relative">
+          <i style="position:absolute;top:0;left:{{ tabLeft }};width:20%;height:2px;border-radius:0 0 2px 2px;background:#212120;transition:left .34s cubic-bezier(.2,.9,.3,1)"></i>
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="4">
+            <button onClick="{{ t.pick }}" style="flex:1;min-height:56px;border:0;background:none;cursor:pointer;font-family:'Golos Text',sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;position:relative;color:{{ t.ink }};transition:color .22s ease-out;-webkit-tap-highlight-color:transparent" style-active="transform:scale(.94)">
+              <span style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;transition:transform .22s ease-out;transform:scale({{ t.iconScale }})">
+                <sc-if value="{{ t.isGrid }}" hint-placeholder-val="{{ true }}">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"></rect></svg>
+                </sc-if>
+                <sc-if value="{{ t.isList }}" hint-placeholder-val="{{ false }}">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h16M4 12h16M4 17.5h16"></path></svg>
+                </sc-if>
+                <sc-if value="{{ t.isHeart }}" hint-placeholder-val="{{ false }}">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="{{ t.heartFill }}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20s-7-4.6-7-9.2A4 4 0 0 1 12 8a4 4 0 0 1 7-2.8c0 4.6-7 14.8-7 14.8Z"></path></svg>
+                </sc-if>
+                <sc-if value="{{ t.isMe }}" hint-placeholder-val="{{ false }}">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.6"></circle><path d="M4.8 20c.9-3.6 3.8-5.6 7.2-5.6s6.3 2 7.2 5.6"></path></svg>
+                </sc-if>
+                <sc-if value="{{ t.badge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:100%;bottom:56%;transform:translateX(-5px);background:#EF544A;color:#fff;border-radius:9px;min-width:18px;padding:0 5px;font-size:11px;line-height:18px;text-align:center;font-weight:700;font-variant-numeric:tabular-nums;animation:popIn .26s cubic-bezier(.2,.9,.3,1.2) both" key="{{ t.badgeKey }}">{{ t.badge }}</span></sc-if>
+              </span>
+              <span style="font-size:11px;font-weight:{{ t.weight }}">{{ t.label }}</span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ always }}" hint-placeholder-val="{{ false }}">
+        <div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(33,32,31,.42);opacity:{{ backdropOp }};pointer-events:{{ backdropPE }};transition:opacity .3s ease-out"></div>
+      </sc-if>
+
+      <sc-if value="{{ productSheet }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:0;right:0;bottom:0;height:704px;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(33,32,31,.22);display:flex;flex-direction:column;overflow:hidden;transform:translateY({{ prodY }});transition:transform .4s cubic-bezier(.22,.9,.28,1)">
+          <div style="flex:1;min-height:0;overflow:auto;padding:14px 16px 0;display:flex;flex-direction:column;gap:12px">
+            <i style="align-self:center;width:44px;height:4px;border-radius:2px;background:#EBEAE7"></i>
+            <div style="position:relative;aspect-ratio:1/1;background:#F5F4F2;border-radius:12px">
+              <span style="position:absolute;left:8px;top:8px;width:34px;height:34px;border-radius:11px;background:{{ pGradeBg }};color:{{ pGradeInk }};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800">{{ pGrade }}</span>
+              <sc-if value="{{ pDiscount }}" hint-placeholder-val="{{ true }}">
+                <span style="position:absolute;left:8px;bottom:8px;display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+                  <span style="background:#212120;color:#fff;border-radius:8px;padding:4px 8px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums">{{ pSave }}</span>
+                  <span style="background:#EF544A;color:#fff;border-radius:8px;padding:4px 8px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums">{{ pDiscount }}</span>
+                </span>
+              </sc-if>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px">
+              <div style="font-size:17px;font-weight:700;line-height:1.25">{{ pName }}</div>
+              <div style="font-size:12px;color:#999;font-variant-numeric:tabular-nums">{{ pMeta }}</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:26px;font-weight:800;letter-spacing:-.02em;color:{{ pPriceColor }};font-variant-numeric:tabular-nums">{{ pPrice }}</span><s style="font-size:14px;color:#999;font-variant-numeric:tabular-nums">{{ pOld }}</s></div>
+              <div style="font-size:12px;color:#999;font-variant-numeric:tabular-nums">{{ pUnit }}</div>
+            </div>
+            <div style="border-top:1px solid #EBEAE7;padding-top:12px;display:flex;align-items:center;gap:8px"><span style="width:26px;height:26px;border-radius:8px;background:{{ pGradeBg }};color:{{ pGradeInk }};display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800">{{ pGrade }}</span><b style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums">{{ pScore }}</b></div>
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:#5C5B58"><span>{{ pPlus }}</span><b style="color:#00794C">+</b></div>
+              <div style="display:flex;justify-content:space-between;gap:12px;font-size:13px;color:#5C5B58"><span>{{ pMinus }}</span><b style="color:#C07A12">−</b></div>
+            </div>
+            <sc-if value="{{ excludeLabel }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ excludeFromSheet }}" style="align-self:flex-start;margin-bottom:14px;min-height:36px;border:1px dashed #D1CFC8;border-radius:16px;background:none;padding:0 12px;font:500 13px 'Golos Text',sans-serif;cursor:pointer">{{ excludeLabel }}</button>
+            </sc-if>
+          </div>
+          <div style="padding:12px 16px 16px;border-top:1px solid #EBEAE7;display:flex;gap:8px;align-items:center">
+            <button onClick="{{ toggleFav }}" style="width:52px;height:52px;flex:0 0 auto;border:0;border-radius:16px;background:{{ favBg }};color:{{ favInk }};cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .25s ease-out,color .25s ease-out,transform .16s ease-out" style-active="transform:scale(.9)">
+              <svg key="{{ favKey }}" viewBox="0 0 24 24" width="24" height="24" fill="{{ favFill }}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="transform-origin:center;animation:heartPop .4s ease-out both"><path d="M12 20s-7-4.6-7-9.2A4 4 0 0 1 12 8a4 4 0 0 1 7-2.8c0 4.6-7 14.8-7 14.8Z"></path></svg>
+            </button>
+            <button onClick="{{ addFromSheet }}" style="flex:1;min-height:52px;border:0;border-radius:16px;background:#212120;color:#fff;font:700 15px 'Golos Text',sans-serif;cursor:pointer;transition:transform .14s ease-out,filter .18s ease-out" style-active="transform:scale(.98);filter:brightness(1.3)">{{ addLabel }}</button>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ listsSheet }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(33,32,31,.22);padding:14px 16px 20px;display:flex;flex-direction:column;gap:12px;transform:translateY({{ listsY }});transition:transform .4s cubic-bezier(.22,.9,.28,1)">
+          <div style="display:flex;align-items:center;justify-content:space-between"><b style="font-size:17px;font-weight:800;letter-spacing:-.01em">Мои списки</b><button onClick="{{ closeSheet }}" style="width:32px;height:32px;border:0;border-radius:50%;background:rgba(101,92,78,.1);cursor:pointer;font-family:'Golos Text',sans-serif">✕</button></div>
+          <sc-for list="{{ allLists }}" as="l" hint-placeholder-count="3">
+            <button onClick="{{ l.pick }}" style="display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:56px;border:0;border-radius:14px;background:{{ l.bg }};padding:0 14px;cursor:pointer;font-family:'Golos Text',sans-serif;text-align:left;animation:rowIn .3s ease-out both;transition:transform .15s ease-out" style-active="transform:scale(.985)">
+              <span style="display:flex;flex-direction:column;gap:2px">
+                <b style="font-size:14px;font-weight:700;color:{{ l.ink }}">{{ l.name }}</b>
+                <span style="font-size:12px;color:{{ l.subInk }};font-variant-numeric:tabular-nums">{{ l.meta }}</span>
+              </span>
+              <span style="font-size:12px;font-weight:700;color:{{ l.actionInk }}">{{ l.action }}</span>
+            </button>
+          </sc-for>
+          <p style="margin:0;font-size:12px;color:#8A8880;line-height:1.5">Активным может быть один список. Прежний активный сохраняется и остаётся здесь.</p>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ filterSheet }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -8px 30px rgba(33,32,31,.22);padding:14px 16px 20px;display:flex;flex-direction:column;gap:14px;transform:translateY({{ filtersY }});transition:transform .4s cubic-bezier(.22,.9,.28,1)">
+          <div style="display:flex;align-items:center;justify-content:space-between"><b style="font-size:17px;font-weight:800;letter-spacing:-.01em">Ещё</b><button onClick="{{ closeSheet }}" style="width:32px;height:32px;border:0;border-radius:50%;background:rgba(101,92,78,.1);cursor:pointer;font-family:'Golos Text',sans-serif">✕</button></div>
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8A8880">Порядок</span>
+            <sc-for list="{{ sorts }}" as="o" hint-placeholder-count="5">
+              <button onClick="{{ o.pick }}" style="display:flex;align-items:center;gap:10px;width:100%;min-height:44px;border:0;background:none;padding:0;cursor:pointer;font-family:'Golos Text',sans-serif;text-align:left">
+                <i style="width:20px;height:20px;border-radius:7px;flex:0 0 auto;background:{{ o.dot }};transition:background .22s ease-out"></i>
+                <span style="font-size:14px;font-weight:600">{{ o.label }}</span>
+              </button>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#8A8880">Оценка состава не ниже</span>
+            <div style="display:flex;gap:6px">
+              <sc-for list="{{ gradeOpts }}" as="g" hint-placeholder-count="4">
+                <button onClick="{{ g.pick }}" style="flex:1;min-height:40px;border:0;border-radius:14px;cursor:pointer;font:700 14px 'Golos Text',sans-serif;background:{{ g.bg }};color:{{ g.ink }};transition:background .22s ease-out,color .22s ease-out,transform .14s ease-out" style-active="transform:scale(.96)">{{ g.label }}</button>
+              </sc-for>
+            </div>
+          </div>
+          <button onClick="{{ closeSheet }}" style="min-height:50px;border:0;border-radius:16px;background:#212120;color:#fff;font:700 15px 'Golos Text',sans-serif;cursor:pointer;font-variant-numeric:tabular-nums">Показать {{ foundCount }}</button>
+        </div>
+      </sc-if>
+
+    </div>
+  </x-import>
+
+  <div style="width:320px;display:flex;flex-direction:column;gap:14px">
+    <div style="background:#fff;border-radius:18px;padding:18px;box-shadow:0 2px 14px rgba(33,32,31,.10);display:flex;flex-direction:column;gap:10px">
+      <b style="font-size:14px;font-weight:700">Прототип принятых решений</b>
+      <p style="margin:0;font-size:13px;line-height:1.55;color:#5C5B58;text-wrap:pretty">Собраны решения всех четырёх батчей: карточка 3a с процентом и экономией, буква состава A–E, каталог прилавками, сегменты «Дешевле · За кг · Состав», шторка с квадратным фото, список с режимом «В магазине», избранное с заготовками, исключения из «Моё».</p>
+      <p style="margin:0;font-size:13px;line-height:1.55;color:#5C5B58;text-wrap:pretty">Фото товаров и картинки плиток каталога — серые заглушки, реальные снимки подставятся при вёрстке.</p>
+    </div>
+    <div style="background:#fff;border-radius:18px;padding:18px;box-shadow:0 2px 14px rgba(33,32,31,.10);display:flex;flex-direction:column;gap:10px">
+      <b style="font-size:14px;font-weight:700">Куда нажимать</b>
+      <sc-for list="{{ jumps }}" as="j" hint-placeholder-count="6">
+        <button onClick="{{ j.go }}" style="display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;border:1px solid #EBEAE7;border-radius:14px;background:none;padding:0 12px;cursor:pointer;font-family:'Golos Text',sans-serif;text-align:left" style-hover="background:#F5F4F2">
+          <span style="font-size:13px;font-weight:600">{{ j.label }}</span>
+          <span style="font-size:11px;color:#8A8880">{{ j.hint }}</span>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:840,&quot;height&quot;:980}}">
+const GRADES = { A: ['#038141', '#ffffff'], B: ['#85BB2F', '#ffffff'], C: ['#FECB02', '#212120'], D: ['#EE8100', '#ffffff'], E: ['#E63E11', '#ffffff'] };
+const ORDER = { A: 0, B: 1, C: 2, D: 3, E: 4 };
+const SAND = 'rgba(101,92,78,.1)';
+
+const P = [
+  { id: 'cheese', name: 'Сыр Ламбер сливочный 50%, 460 г', grade: 'B', score: 92, price: 449, old: 589, unit: '976,09 ₽ за кг', brand: 'Lambert', rate: '4,7 · 312 оценок', plus: '4 ингредиента, без Е-добавок', minus: 'соль 1,8 г на 100 г' },
+  { id: 'milk', name: 'Молоко Простоквашино 3,4–4,5%, 930 мл', grade: 'C', score: 61, price: 109.9, unit: '118,17 ₽ за л', brand: 'Простоквашино', rate: '4,5 · 908 оценок', plus: 'без сухого молока', minus: 'срок годности 6 месяцев' },
+  { id: 'tvorog', name: 'Творог Савушкин 5%, 300 г', grade: 'A', score: 95, price: 139, unit: '463,33 ₽ за кг', brand: 'Савушкин', rate: '4,8 · 421 оценка', plus: '2 ингредиента, белок 16 г', minus: 'жирность выше средней' },
+  { id: 'hochland', name: 'Сыр плавленый Hochland сливочный, 200 г', grade: 'D', score: 44, price: 159.9, old: 188, unit: '799,50 ₽ за кг', brand: 'Hochland', rate: '4,4 · 265 оценок', plus: 'удобная упаковка', minus: 'пальмовое масло, соли-плавители', blocks: ['Пальмовое масло'] },
+  { id: 'egg', name: 'Яйцо куриное С0, 10 шт', grade: 'A', score: 88, price: 129, unit: '12,90 ₽ за шт', brand: 'Роскар', rate: '4,6 · 511 оценок', plus: 'один ингредиент', minus: 'хранить в холоде' },
+  { id: 'brest', name: 'Сыр Российский Брест-Литовск 50%, 200 г', grade: 'B', score: 84, price: 189, unit: '945,00 ₽ за кг', brand: 'Брест-Литовск', rate: '4,6 · 198 оценок', plus: 'без консервантов', minus: 'соль 1,9 г на 100 г' },
+  { id: 'maslo', name: 'Масло сливочное Экомилк 82,5%, 380 г', grade: 'B', score: 80, price: 329, unit: '865,79 ₽ за кг', brand: 'Экомилк', rate: '4,7 · 143 оценки', plus: 'без растительных жиров', minus: 'нет в наличии в вашем магазине', oos: true },
+  { id: 'mumu', name: 'Молочный напиток Му-Му, 950 мл', grade: 'E', score: 28, price: 89.9, unit: '94,63 ₽ за л', brand: 'Му-Му', rate: '4,1 · 76 оценок', plus: 'дешевле молока', minus: 'сахар 9 г, ароматизатор', blocks: ['Ароматизаторы', 'Сахар в составе', 'Му-Му'] }
+];
+
+const COUNTERS = [
+  { title: 'Молочный прилавок', bg: '#CBE0F5', tiles: [
+    { name: 'Молоко, масло и яйца', span: 2, slot: 'c-milk' },
+    { name: 'Сыры', span: 1, slot: 'c-cheese' },
+    { name: 'Кефир, сметана, творог', span: 1, slot: 'c-kefir' },
+    { name: 'Йогурты и десерты', span: 1, slot: 'c-yog' },
+    { name: 'Молочное для детей', span: 1, slot: 'c-kids' }
+  ] },
+  { title: 'Булочная', bg: '#F7DCB4', tiles: [
+    { name: 'Из пекарни', span: 2, slot: 'c-bakery' },
+    { name: 'Выпечка', span: 1, slot: 'c-pastry' },
+    { name: 'Хлебцы', span: 1, slot: 'c-crisp' },
+    { name: 'Хлеб и лепёшки', span: 2, slot: 'c-bread' }
+  ] },
+  { title: 'Овощи и фрукты', bg: '#D3E9BC', tiles: [
+    { name: 'Овощи и зелень', span: 2, slot: 'c-veg' },
+    { name: 'Фрукты', span: 1, slot: 'c-fruit' },
+    { name: 'Ягоды', span: 1, slot: 'c-berry' }
+  ] }
+];
+
+const PRESETS = [
+  { id: 'week', name: 'Еженедельная закупка', items: { cheese: 1, milk: 2, egg: 1, tvorog: 2, brest: 1 } },
+  { id: 'last', name: 'Повторить закупку от 6 августа', items: { milk: 2, egg: 1, maslo: 1, brest: 1 } },
+  { id: 'break', name: 'Завтраки', items: { milk: 1, egg: 2, tvorog: 1 } }
+];
+
+const SUGGEST = [
+  { name: 'Пальмовое масло', kind: 'ингредиент' },
+  { name: 'Ароматизаторы', kind: 'ингредиент' },
+  { name: 'Сахар в составе', kind: 'ингредиент' },
+  { name: 'Му-Му', kind: 'бренд', prefix: 'бренд ' }
+];
+
+const SORTS = [
+  { key: 'cheap', label: 'Сначала дешёвые' },
+  { key: 'unit', label: 'Сначала дешёвые за кг' },
+  { key: 'grade', label: 'Лучший состав' },
+  { key: 'rate', label: 'Высокий рейтинг' }
+];
+
+class Component extends DCLogic {
+  state = {
+    screen: 'onboarding', sheet: null, prod: null, loading: false,
+    feedTitle: 'Молочное, сыр, яйцо',
+    qty: {}, checked: {}, shopMode: false,
+    seg: 'cheap', stock: true, sale: false, minGrade: 'any',
+    excluded: [], hideMode: 'mark', allowed: {}, pending: {}, pendingFav: {}, customBudget: false,
+    fav: { cheese: true, tvorog: true, egg: true, brest: true },
+    budget: 3000,
+    headerFull: true, query: '', order: [], closing: null, shownTotal: 0, dir: 0,
+    activeName: 'Список на неделю',
+    savedLists: [{ id: 'sl1', name: 'Дача', items: { egg: 2, maslo: 1, brest: 1 } }],
+    history: []
+  };
+
+  today() { return new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' }); }
+  sumOf(items) { return Object.keys(items).reduce((a, k) => a + this.find(k).price * items[k], 0); }
+  countOf(items) { return Object.keys(items).reduce((a, k) => a + items[k], 0); }
+
+  finishTrip() {
+    this.setState(s => {
+      if (!Object.keys(s.qty).length) return {};
+      const entry = { id: 'h' + Date.now(), date: this.today(), name: s.activeName, items: { ...s.qty } };
+      return { history: [entry, ...s.history], qty: {}, checked: {}, pending: {}, order: [], shopMode: false };
+    });
+  }
+  switchList(id) {
+    this.setState(s => {
+      const target = s.savedLists.find(l => l.id === id);
+      if (!target) return { sheet: null };
+      const rest = s.savedLists.filter(l => l.id !== id);
+      const keep = Object.keys(s.qty).length ? [{ id: 'sl' + Date.now(), name: s.activeName, items: { ...s.qty } }] : [];
+      return { qty: { ...target.items }, order: Object.keys(target.items), activeName: target.name, savedLists: [...keep, ...rest], sheet: null, checked: {}, pending: {} };
+    });
+  }
+
+  fmt(n) {
+    const [i, d] = n.toFixed(2).split('.');
+    return i.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ',' + d + ' ₽';
+  }
+  round(n) { return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' ₽'; }
+  unitVal(p) { return parseFloat(p.unit.replace(/\s/g, '').replace(',', '.')); }
+  plural(n) { const t = n % 10, h = n % 100; return n + ' ' + (t === 1 && h !== 11 ? 'товар' : (t > 1 && t < 5 && (h < 10 || h > 20) ? 'товара' : 'товаров')); }
+  find(id) { return P.find(p => p.id === id); }
+
+  blockTag(p) {
+    if (this.state.allowed[p.id] || !p.blocks) return '';
+    const hit = p.blocks.find(t => this.state.excluded.some(e => e.name === t));
+    return hit || '';
+  }
+  isBlocked(p) { return !!this.blockTag(p); }
+  bump(id, d) {
+    this.setState(s => {
+      const q = { ...s.qty }, p = { ...s.pending }, v = (q[id] || 0) + d;
+      if (v <= 0) { delete q[id]; p[id] = true; } else { q[id] = v; delete p[id]; }
+      const order = s.order.includes(id) ? s.order : [...s.order, id];
+      return { qty: q, pending: p, order };
+    });
+    if (d < 0) {
+      clearTimeout(this._pt);
+      this._pt = setTimeout(() => this.setState(s => {
+        const p = { ...s.pending };
+        Object.keys(p).forEach(k => { if (!s.qty[k]) delete p[k]; });
+        return { pending: p, order: s.order.filter(k => s.qty[k] || p[k]) };
+      }), 4000);
+    }
+  }
+  restore(id) {
+    this.setState(s => {
+      const p = { ...s.pending }; delete p[id];
+      return { qty: { ...s.qty, [id]: 1 }, pending: p };
+    });
+  }
+  go(screen) {
+    const O = { catalog: 0, feed: 0, list: 1, fav: 2, me: 3 };
+    const from = O[this.state.screen];
+    const dir = from === undefined ? 0 : Math.sign(O[screen] - from);
+    this.setState({ screen, sheet: null, closing: null, pendingFav: {}, dir });
+  }
+  closeSheet() { this.setState({ sheet: null }); }
+  totalNow() { const q = this.state.qty; return Object.keys(q).reduce((a, k) => a + this.find(k).price * q[k], 0); }
+  componentDidUpdate() {
+    const t = this.totalNow();
+    if (this._target === undefined) { this._target = t; return; }
+    if (t !== this._target) { this._target = t; this.rampTotal(t); }
+  }
+  rampTotal(to) {
+    cancelAnimationFrame(this._raf);
+    const from = this.state.shownTotal || 0, t0 = performance.now();
+    const step = now => {
+      const k = Math.min(1, (now - t0) / 420), e = 1 - Math.pow(1 - k, 3);
+      this.setState({ shownTotal: from + (to - from) * e });
+      if (k < 1) this._raf = requestAnimationFrame(step);
+    };
+    this._raf = requestAnimationFrame(step);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this._raf); clearTimeout(this._ct); clearTimeout(this._t); clearTimeout(this._pt); }
+  openCat(title) {
+    this.setState({ screen: 'feed', feedTitle: title, loading: true, sheet: null, dir: 1, headerFull: true });
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.setState({ loading: false }), 900);
+  }
+  addPreset(id) {
+    const pre = PRESETS.find(p => p.id === id);
+    this.setState(s => {
+      const qty = { ...s.qty, ...pre.items };
+      const order = s.order.concat(Object.keys(qty).filter(k => !s.order.includes(k)));
+      return { qty, order, screen: 'list', sheet: null };
+    });
+  }
+  toggleExcl(name, kind) {
+    this.setState(s => {
+      const has = s.excluded.some(e => e.name === name);
+      return { excluded: has ? s.excluded.filter(e => e.name !== name) : [...s.excluded, { name, kind }] };
+    });
+  }
+
+  renderVals() {
+    const s = this.state, fmt = n => this.fmt(n);
+    const tabs = [
+      { key: 'catalog', icon: '▦', label: 'Каталог' },
+      { key: 'list', icon: '☰', label: 'Список' },
+      { key: 'fav', icon: '♥', label: 'Избранное' },
+      { key: 'me', icon: '☺', label: 'Моё' }
+    ];
+    const qtyIds = Object.keys(s.qty);
+    const itemsN = qtyIds.reduce((a, k) => a + s.qty[k], 0);
+    const total = qtyIds.reduce((a, k) => a + this.find(k).price * s.qty[k], 0);
+    const saved = qtyIds.reduce((a, k) => { const p = this.find(k); return a + (p.old ? (p.old - p.price) * s.qty[k] : 0); }, 0);
+    const shown = itemsN ? (s.shownTotal || total) : 0;
+    const left = s.budget - shown;
+    const pct = Math.min(100, Math.round(shown / s.budget * 100));
+
+    // feed
+    const q = s.query.trim().toLowerCase();
+    let feed = P.filter(p => {
+      if (q && !p.name.toLowerCase().includes(q) && !p.brand.toLowerCase().includes(q)) return false;
+      if (s.stock && p.oos) return false;
+      if (s.sale && !p.old) return false;
+      if (s.minGrade !== 'any' && ORDER[p.grade] > ORDER[s.minGrade]) return false;
+      if (s.hideMode === 'hide' && this.isBlocked(p)) return false;
+      return true;
+    });
+    const sortKey = s.seg;
+    const rateVal = p => parseFloat(p.rate.replace(',', '.'));
+    feed = feed.slice().sort((a, b) =>
+      sortKey === 'unit' ? this.unitVal(a) - this.unitVal(b)
+        : sortKey === 'grade' ? ORDER[a.grade] - ORDER[b.grade]
+          : sortKey === 'rate' ? rateVal(b) - rateVal(a)
+            : a.price - b.price);
+
+    const seg = (k, label) => ({ label, bg: s.seg === k ? '#ffffff' : 'transparent', ink: s.seg === k ? '#212120' : '#5C5B58', pick: () => this.setState({ seg: k }) });
+    const gradeNames = { any: '', A: 'состав A', B: 'состав A–B', C: 'состав A–C' };
+    const sortNames = { cheap: 'Сначала дешёвые', unit: 'Сначала дешёвые за кг', grade: 'Лучший состав', rate: 'Высокий рейтинг' };
+
+    const prod = s.prod ? this.find(s.prod) : null;
+    const pTag = prod && prod.blocks ? prod.blocks[0] : '';
+    const pExcluded = pTag && s.excluded.some(e => e.name === pTag);
+
+    const activeFilters = [];
+    if (q) activeFilters.push({ label: '«' + s.query.trim() + '»', drop: () => this.setState({ query: '' }) });
+    if (s.minGrade !== 'any') activeFilters.push({ label: 'оценка не ниже ' + s.minGrade, drop: () => this.setState({ minGrade: 'any' }) });
+    if (s.sale) activeFilters.push({ label: 'со скидкой', drop: () => this.setState({ sale: false }) });
+    if (s.stock) activeFilters.push({ label: 'в наличии', drop: () => this.setState({ stock: false }) });
+
+    return {
+      frameW: 412, frameH: 892,
+      isOnboarding: s.screen === 'onboarding',
+      isCatalog: s.screen === 'catalog',
+      isFeed: s.screen === 'feed',
+      isList: s.screen === 'list',
+      isFav: s.screen === 'fav',
+      isMe: s.screen === 'me',
+      showTabs: s.screen !== 'onboarding',
+      showListPill: (s.screen === 'catalog' || s.screen === 'feed' || s.screen === 'fav') && itemsN > 0,
+      always: true,
+      sheetOpen: !!s.sheet,
+      productSheet: !!prod,
+      filterSheet: true,
+      listsSheet: true,
+      prodY: s.sheet === 'product' ? '0%' : '110%',
+      listsY: s.sheet === 'lists' ? '0%' : '110%',
+      filtersY: s.sheet === 'filters' ? '0%' : '110%',
+      backdropOp: s.sheet ? 1 : 0,
+      backdropPE: s.sheet ? 'auto' : 'none',
+      gridKey: [s.seg, s.stock, s.sale, s.minGrade, s.query, s.hideMode, s.feedTitle].join('|'),
+      openLists: () => this.setState({ sheet: 'lists' }),
+      activeName: s.activeName,
+      headerFull: s.headerFull,
+      headH: s.headerFull ? '104px' : '0px',
+      chipsH: s.headerFull ? '74px' : '0px',
+      headOp: s.headerFull ? 1 : 0,
+      enterAnim: s.dir > 0 ? 'slideInR .3s ease-out both' : (s.dir < 0 ? 'slideInL .3s ease-out both' : 'screenIn .32s ease-out both'),
+      barAnim: left < 0 ? 'barPulse 1.8s ease-in-out infinite' : 'none',
+      onFeedScroll: e => {
+        const y = e.target.scrollTop;
+        if (y > 56 && s.headerFull) this.setState({ headerFull: false });
+        else if (y < 16 && !s.headerFull) this.setState({ headerFull: true });
+      },
+      finishTrip: () => this.finishTrip(),
+      checkedLabel: 'отмечено ' + Object.keys(s.checked).filter(k => s.checked[k] && s.qty[k]).length + ' из ' + qtyIds.length,
+      noHistory: s.history.length === 0,
+      history: s.history.map(h => ({
+        date: h.date, meta: h.name + ' · ' + this.plural(this.countOf(h.items)) + ' · ' + fmt(this.sumOf(h.items)),
+        repeat: () => this.setState({ qty: { ...h.items }, order: Object.keys(h.items), screen: 'list', sheet: null })
+      })),
+      allLists: [{
+        name: s.activeName, meta: qtyIds.length ? this.plural(itemsN) + ' · ' + fmt(total) : 'пока пусто',
+        bg: '#212120', ink: '#ffffff', subInk: '#B9B7B2', actionInk: '#B9B7B2', action: 'активный',
+        pick: () => this.closeSheet()
+      }].concat(s.savedLists.map(l => ({
+        name: l.name, meta: this.plural(this.countOf(l.items)) + ' · ' + fmt(this.sumOf(l.items)),
+        bg: 'rgba(101,92,78,.1)', ink: '#212120', subInk: '#8A8880', actionInk: '#212120', action: 'сделать активным',
+        pick: () => this.switchList(l.id)
+      }))),
+      closeSheet: () => this.closeSheet(),
+      finishOnboarding: () => this.go('catalog'),
+      goCatalog: () => this.go('catalog'),
+      goList: () => this.go('list'),
+
+      budgets: [2000, 3000, 5000].map(b => ({
+        label: this.round(b), bg: !s.customBudget && s.budget === b ? '#212120' : 'transparent', ink: !s.customBudget && s.budget === b ? '#ffffff' : '#5C5B58',
+        pick: () => this.setState({ budget: b, customBudget: false })
+      })).concat([{
+        label: 'Свой', bg: s.customBudget ? '#212120' : 'transparent', ink: s.customBudget ? '#ffffff' : '#5C5B58',
+        pick: () => this.setState({ customBudget: true })
+      }]),
+      customBudget: s.customBudget,
+      budgetLeft: (s.customBudget || [2000, 3000, 5000].indexOf(s.budget) < 0 ? 3 : [2000, 3000, 5000].indexOf(s.budget)) * 25 + '%',
+      modeLeft: s.hideMode === 'hide' ? '0%' : '50%',
+      budgetValue: s.budget,
+      setBudget: e => { const v = parseInt(e.target.value, 10); this.setState({ budget: v > 0 ? v : 1 }); },
+      suggestions: SUGGEST.map(x => {
+        const on = s.excluded.some(e => e.name === x.name);
+        return {
+          label: (on ? '✓ ' : '+ ') + (x.prefix || '') + x.name,
+          bg: on ? '#212120' : 'transparent', ink: on ? '#ffffff' : '#212120',
+          border: on ? '0' : '1px dashed #D1CFC8',
+          add: () => this.toggleExcl(x.name, x.kind)
+        };
+      }),
+      excluded: s.excluded.map((e, idx) => ({ name: e.name, kind: e.kind, remove: () => this.setState(p => ({ excluded: p.excluded.filter((_, i) => i !== idx) })) })),
+      noneExcluded: s.excluded.length === 0,
+      exclLabel: s.excluded.length ? 'Под правила попадает товаров: ' + P.filter(p => this.isBlocked(p)).length : '',
+      hideBg: s.hideMode === 'hide' ? '#212120' : 'transparent', hideInk: s.hideMode === 'hide' ? '#ffffff' : '#5C5B58',
+      markBg: s.hideMode === 'mark' ? '#212120' : 'transparent', markInk: s.hideMode === 'mark' ? '#ffffff' : '#5C5B58',
+      modeHide: () => this.setState({ hideMode: 'hide' }),
+      modeMark: () => this.setState({ hideMode: 'mark' }),
+      modeNote: s.hideMode === 'hide' ? 'Товары с исключениями не показываются в ленте вовсе.' : 'Товары остаются в ленте, но помечены причиной и приглушены.',
+
+      counters: COUNTERS.map(c => ({ title: c.title, bg: c.bg, tiles: c.tiles.map((t, i) => ({ ...t, delay: (i * 45) + 'ms', open: () => this.openCat(t.name) })) })),
+
+      feedTitle: s.feedTitle,
+      query: s.query,
+      setQuery: e => this.setState({ query: e.target.value }),
+      clearQuery: () => this.setState({ query: '' }),
+      backToCatalog: () => this.go('catalog'),
+      openFilters: () => this.setState({ sheet: 'filters' }),
+      segs: [seg('cheap', 'Дешевле'), seg('unit', 'За кг'), seg('grade', 'Состав')],
+      segLeft: (({ cheap: 0, unit: 1, grade: 2 }[s.seg]) || 0) * 33.3333 + '%',
+      segOp: ['cheap', 'unit', 'grade'].indexOf(s.seg) >= 0 ? 1 : 0,
+      cardSpan: feed.some(p => this.isBlocked(p)) ? 5 : 4,
+      stockBg: s.stock ? '#212120' : SAND, stockInk: s.stock ? '#ffffff' : '#212120',
+      saleBg: s.sale ? '#212120' : SAND, saleInk: s.sale ? '#ffffff' : '#212120',
+      toggleStock: () => this.setState(p => ({ stock: !p.stock })),
+      toggleSale: () => this.setState(p => ({ sale: !p.sale })),
+      gradeChip: gradeNames[s.minGrade],
+      clearGrade: () => this.setState({ minGrade: 'any' }),
+      sortLabel: sortNames[s.seg],
+      foundCount: feed.length,
+      loading: s.loading,
+      feedEmpty: !s.loading && feed.length === 0,
+      feedVisible: !s.loading && feed.length > 0,
+      skeletons: [0, 1, 2, 3, 4, 5].map(i => ({ delay: (i * 90) + 'ms' })),
+      activeFilters,
+      dropAllFilters: () => this.setState({ minGrade: 'any', sale: false, stock: false, query: '' }),
+      feed: feed.map((p, fi) => {
+        const tag = this.blockTag(p), blocked = !!tag;
+        const q = s.qty[p.id] || 0;
+        return {
+          name: p.name, grade: p.grade, gradeBg: GRADES[p.grade][0], gradeInk: GRADES[p.grade][1],
+          delay: Math.min(fi * 40, 320) + 'ms',
+          discount: p.old ? '−' + Math.round((1 - p.price / p.old) * 100) + '%' : '',
+          save: p.old ? '−' + this.round(p.old - p.price) : '',
+          oos: !!p.oos && !blocked, blockLabel: blocked ? tag.toLowerCase() : '',
+          opacity: blocked ? .55 : 1,
+          price: fmt(p.price), old: p.old ? fmt(p.old) : '', priceColor: p.old ? '#EF544A' : (p.oos ? '#5C5B58' : '#212120'),
+          unit: p.unit + ' · ★ ' + p.rate.split(' · ')[0],
+          qty: q, hasQty: q > 0 && !p.oos && !blocked, showAdd: q === 0 && !p.oos && !blocked, qtyKey: 'q' + q,
+          add: e => { e.stopPropagation(); this.bump(p.id, 1); },
+          dec: e => { e.stopPropagation(); this.bump(p.id, -1); },
+          allow: e => { e.stopPropagation(); this.setState(x => ({ allowed: { ...x.allowed, [p.id]: true } })); },
+          open: () => this.setState({ sheet: 'product', prod: p.id })
+        };
+      }),
+
+      listEmpty: itemsN === 0, listFilled: itemsN > 0,
+      total: fmt(shown), saved: this.round(saved), itemsCount: this.plural(itemsN),
+      budgetLabel: this.round(s.budget),
+      leftLabel: left >= 0 ? 'осталось ' + this.round(left) : 'перерасход ' + this.round(-left),
+      leftColor: left >= 0 ? '#00794C' : '#EF544A',
+      barColor: left >= 0 ? '#009860' : '#EF544A', barWidth: pct + '%',
+      shopMode: s.shopMode,
+      shopLabel: s.shopMode ? 'Дома' : 'В магазине',
+      shopBg: s.shopMode ? '#212120' : SAND, shopInk: s.shopMode ? '#ffffff' : '#212120',
+      toggleShopMode: () => this.setState(p => ({ shopMode: !p.shopMode })),
+      listItems: s.order.filter(id => s.qty[id] || s.pending[id]).map(id => {
+        const p = this.find(id), pend = !s.qty[id], q = s.qty[id] || 1, on = !!s.checked[id] && s.shopMode;
+        const dim = on || pend;
+        return {
+          name: p.name, grade: p.grade, gradeBg: pend ? '#EBEAE7' : GRADES[p.grade][0], gradeInk: pend ? '#B9B7B2' : GRADES[p.grade][1],
+          pending: pend, active: !pend, restore: () => this.restore(id),
+          qty: q, sum: fmt(p.price * q), qtyKey: 'q' + q,
+          sumColor: dim ? '#B9B7B2' : (p.old ? '#EF544A' : '#212120'),
+          nameColor: dim ? '#B9B7B2' : '#212120', strike: on ? 'line-through' : 'none',
+          sub: p.old ? 'было ' + fmt(p.old * q) + ' · −' + this.round((p.old - p.price) * q) : p.unit,
+          boxBg: s.checked[id] ? '#009860' : SAND, tick: s.checked[id] ? '✓' : '',
+          check: () => this.setState(x => ({ checked: { ...x.checked, [id]: !x.checked[id] } })),
+          inc: () => this.bump(id, 1), dec: () => this.bump(id, -1),
+          open: () => this.setState({ sheet: 'product', prod: id })
+        };
+      }),
+
+      presets: PRESETS.map(pre => {
+        const ids = Object.keys(pre.items);
+        const sum = ids.reduce((a, k) => a + this.find(k).price * pre.items[k], 0);
+        const n = ids.reduce((a, k) => a + pre.items[k], 0);
+        return {
+          name: pre.name, n: this.plural(n), meta: this.plural(n) + ' · ' + fmt(sum),
+          sample: ids.slice(0, 3).map(k => this.find(k).name.split(' ').slice(0, 2).join(' ')).join(', ') + '…',
+          sum: fmt(sum), btn: 'В список', btnBg: '#212120', btnInk: '#ffffff',
+          add: () => this.addPreset(pre.id)
+        };
+      }),
+      favCount: Object.keys(s.fav).filter(k => s.fav[k]).length,
+      favTiles: P.filter(p => s.fav[p.id] || s.pendingFav[p.id]).map(p => {
+        const q = s.qty[p.id] || 0, off = !s.fav[p.id];
+        return {
+          name: p.name, grade: p.grade, gradeBg: GRADES[p.grade][0], gradeInk: GRADES[p.grade][1],
+          price: fmt(p.price), old: p.old ? fmt(p.old) : '', priceColor: p.old ? '#EF544A' : '#212120', unit: p.unit + ' · ★ ' + p.rate.split(' · ')[0],
+          qty: q, hasQty: q > 0, showAdd: q === 0, qtyKey: 'q' + q, heartKey: 'h' + (off ? 0 : 1),
+          heartFill: off ? 'none' : '#EF544A', heartInk: off ? '#B9B7B2' : '#EF544A',
+          add: e => { e.stopPropagation(); this.bump(p.id, 1); },
+          dec: e => { e.stopPropagation(); this.bump(p.id, -1); },
+          unfav: e => {
+            e.stopPropagation();
+            this.setState(x => ({ fav: { ...x.fav, [p.id]: !x.fav[p.id] }, pendingFav: { ...x.pendingFav, [p.id]: true } }));
+          },
+          open: () => this.setState({ sheet: 'product', prod: p.id })
+        };
+      }),
+      emptyActions: (s.history.length
+        ? [{ name: 'Повторить закупку от ' + s.history[0].date, meta: this.plural(this.countOf(s.history[0].items)) + ' · ' + fmt(this.sumOf(s.history[0].items)), add: () => this.setState({ qty: { ...s.history[0].items }, order: Object.keys(s.history[0].items) }) }]
+        : [{ name: 'Повторить закупку от 6 августа', meta: this.plural(5) + ' · 866,80 ₽', add: () => this.addPreset('last') }]
+      ).concat([
+        { name: 'Выбрать другой список', meta: this.plural(this.countOf(s.savedLists[0] ? s.savedLists[0].items : {})) + ' в «' + (s.savedLists[0] ? s.savedLists[0].name : '—') + '»', add: () => this.setState({ sheet: 'lists' }) }
+      ]),
+
+      pName: prod ? prod.name : '', pGrade: prod ? prod.grade : '',
+      pGradeBg: prod ? GRADES[prod.grade][0] : '#EBEAE7', pGradeInk: prod ? GRADES[prod.grade][1] : '#212120',
+      pMeta: prod ? '★ ' + prod.rate + ' · ' + prod.brand : '',
+      pDiscount: prod && prod.old ? '−' + Math.round((1 - prod.price / prod.old) * 100) + '%' : '',
+      pSave: prod && prod.old ? '−' + this.round(prod.old - prod.price) : '',
+      pPrice: prod ? fmt(prod.price) : '', pOld: prod && prod.old ? fmt(prod.old) : '',
+      pPriceColor: prod && prod.old ? '#EF544A' : '#212120',
+      pUnit: prod ? prod.unit : '', pScore: prod ? 'Оценка состава ' + prod.score + ' из 100' : '',
+      pPlus: prod ? prod.plus : '', pMinus: prod ? prod.minus : '',
+      excludeLabel: pTag ? (pExcluded ? '✓ ' + pTag + ' в исключениях' : '+ Скрывать ' + pTag.toLowerCase()) : '',
+      excludeFromSheet: () => { if (pTag) this.toggleExcl(pTag, 'ингредиент'); },
+      favInk: prod && s.fav[prod.id] ? '#EF544A' : '#5C5B58',
+      favFill: prod && s.fav[prod.id] ? '#EF544A' : 'none',
+      favKey: 'f' + (prod && s.fav[prod.id] ? 1 : 0),
+      favBg: prod && s.fav[prod.id] ? '#FDE9E5' : 'rgba(101,92,78,.1)',
+      toggleFav: () => { if (prod) this.setState(x => ({ fav: { ...x.fav, [prod.id]: !x.fav[prod.id] } })); },
+      addLabel: prod ? (s.qty[prod.id] ? 'В списке · ' + s.qty[prod.id] : 'В список · ' + fmt(prod.price)) : '',
+      addFromSheet: () => { if (prod) this.bump(prod.id, 1); },
+
+      sorts: SORTS.map(o => ({
+        label: o.label, dot: s.seg === o.key ? '#212120' : SAND,
+        pick: () => this.setState({ seg: o.key })
+      })),
+      gradeOpts: ['any', 'A', 'B', 'C'].map(k => ({
+        label: k === 'any' ? 'Любой' : k,
+        bg: s.minGrade === k ? '#212120' : SAND, ink: s.minGrade === k ? '#ffffff' : '#212120',
+        pick: () => this.setState({ minGrade: k })
+      })),
+
+      tabLeft: (({ catalog: 0, feed: 0, list: 1, fav: 2, me: 3 }[s.screen] || 0) * 25 + 2.5) + '%',
+      tabs: tabs.map(t => ({
+        label: t.label,
+        isGrid: t.key === 'catalog',
+        isList: t.key === 'list',
+        isHeart: t.key === 'fav',
+        isMe: t.key === 'me',
+        heartFill: s.screen === 'fav' ? 'currentColor' : 'none',
+        ink: s.screen === t.key || (t.key === 'catalog' && s.screen === 'feed') ? '#212120' : '#999',
+        weight: s.screen === t.key ? 700 : 600,
+        badge: t.key === 'list' && itemsN ? itemsN : 0,
+        badgeKey: 'b' + itemsN,
+        iconScale: s.screen === t.key || (t.key === 'catalog' && s.screen === 'feed') ? 1.08 : 1,
+        pick: () => this.go(t.key)
+      })),
+
+      jumps: [
+        { label: 'Онбординг', hint: 'бюджет и исключения', go: () => this.go('onboarding') },
+        { label: 'Каталог прилавками', hint: 'плитки 8a', go: () => this.go('catalog') },
+        { label: 'Лента категории', hint: 'скелетон → карточки', go: () => this.openCat('Молочное, сыр, яйцо') },
+        { label: 'Шторка товара', hint: 'фото 1:1', go: () => this.setState({ screen: 'feed', sheet: 'product', prod: 'cheese', loading: false }) },
+        { label: 'Список покупок', hint: 'бюджет и «В магазине»', go: () => this.addPreset('week') },
+        { label: 'Пустой список', hint: 'заготовки', go: () => this.setState({ screen: 'list', qty: {}, order: [], pending: {}, sheet: null }) },
+        { label: 'Мои списки', hint: 'смена активного', go: () => this.setState({ screen: 'list', sheet: 'lists' }) },
+        { label: 'Завершить закупку', hint: 'уходит в историю', go: () => this.setState({ screen: 'list', shopMode: true, sheet: null }) },
+        { label: 'Избранное', hint: 'заготовки + плитки', go: () => this.go('fav') },
+        { label: 'Моё', hint: 'исключения и режим', go: () => this.go('me') }
+      ]
+    };
+  }
+}
+
+</script>
+</body>
+</html>
