@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # публикует данные сайта в gh-pages
 
 concurrency:
   group: weekly-full
@@ -73,10 +73,24 @@ jobs:
       - name: Собрать данные сайта
         run: python build_site_data.py
 
-      # Публикация появится вместе с хостингом на Cloudflare Pages.
-      # Пока результат складывается артефактом — его видно и можно скачать.
+      # Артефакт — для быстрой проверки текущего прогона прямо в интерфейсе
+      # Actions; хранится всего 30 дней, поэтому не единственная копия.
       - uses: actions/upload-artifact@v4
         with:
           name: site-data
           path: web/data/
           retention-days: 30
+
+      # Постоянное хранение — тот же приём, что и в update_daily.ps1: ветка
+      # gh-pages целиком из web/, перезаписывается force-push'ем, история
+      # не растёт. В отличие от артефакта не истекает через 30 дней.
+      - name: Опубликовать данные сайта в gh-pages
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git --work-tree=web add --all
+          tree=$(git --work-tree=web write-tree)
+          git read-tree HEAD
+          commit=$(git commit-tree "$tree" -m "site data $(date -u +%F)")
+          git update-ref refs/heads/gh-pages "$commit"
+          git push -f origin gh-pages
