@@ -58,25 +58,25 @@ def snapshot_record(item: dict) -> dict:
     }
 
 
-def collect(api: AuchanAPI, leaves: list, verbose: bool = True) -> dict[str, dict]:
-    """Обход листингов в потоках. Товар встречается в нескольких категориях —
-    остаётся первая запись, они по цене и остатку совпадают."""
+def _fetch_categories(api: AuchanAPI, nodes: list[dict], total: int = 0,
+                       verbose: bool = True) -> tuple[dict[str, dict], list[dict]]:
+    """Один проход по списку узлов дерева. Возвращает (записи, узлы с ошибкой)."""
     records: dict[str, dict] = {}
-    failed: list[str] = []
+    failed: list[dict] = []
     done = 0
 
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:
         futures = {
             pool.submit(api.list_category, node["code"], MERCHANT_ID): node
-            for node, _ in leaves
+            for node in nodes
         }
         for future in as_completed(futures):
             node = futures[future]
             done += 1
             try:
                 items = future.result()
-            except Exception as exc:  # сеть, 5xx после ретраев — категория пропускается
-                failed.append(node.get("code") or "?")
+            except Exception as exc:  # сеть, 5xx после ретраев самого HTTP-клиента
+                failed.append(node)
                 print(f"  ! {node.get('code')}: {exc}", file=sys.stderr)
                 continue
             for item in items:
@@ -84,11 +84,38 @@ def collect(api: AuchanAPI, leaves: list, verbose: bool = True) -> dict[str, dic
                 if code and code not in records:
                     records[code] = snapshot_record(item)
             if verbose and done % 50 == 0:
-                print(f"  [{done}/{len(futures)}] уникальных товаров: {len(records)}")
+                print(f"  [{done}/{total or len(futures)}] уникальных товаров: {len(records)}")
+
+    return records, failed
+
+
+def collect(api: AuchanAPI, leaves: list, verbose: bool = True) -> dict[str, dict]:
+    """Обход листингов в потоках. Товар встречается в нескольких категориях —
+    остаётся первая запись, они по цене и остатку совпадают.
+
+    Категория, упавшая с первой попытки, почти всегда отваливается вместе
+    с соседями от одного и того же временного сбоя (Qrator, перегрузка) —
+    поэтому упавшие обходятся вторым проходом через паузу, а не сразу же."""
+    nodes = [node for node, _ in leaves]
+    records, failed = _fetch_categories(api, nodes, total=len(nodes), verbose=verbose)
 
     if failed:
-        print(f"\n! не удалось обойти категорий: {len(failed)} ({', '.join(failed[:10])})",
-              file=sys.stderr)
+        codes = [n.get("code") or "?" for n in failed]
+        print(f"\n! не удалось обойти категорий с первой попытки: {len(failed)} "
+              f"({', '.join(codes[:10])}) — повторяю через 10 секунд", file=sys.stderr)
+        time.sleep(10)
+        retried, still_failed = _fetch_categories(api, failed, verbose=False)
+        for code, record in retried.items():
+            records.setdefault(code, record)
+
+        recovered = len(failed) - len(still_failed)
+        if recovered:
+            print(f"  повтор дособрал {recovered} из {len(failed)} категорий", file=sys.stderr)
+        if still_failed:
+            codes = [n.get("code") or "?" for n in still_failed]
+            print(f"::error::снимок цен: {len(still_failed)} категорий не собрались "
+                  f"даже после повторного прогона — {', '.join(codes)}", file=sys.stderr)
+
     return records
 
 
