@@ -139,6 +139,21 @@ class Collector:
             self.cache[code] = record
         return record
 
+    def _fetch_products(self, codes) -> tuple[list[dict], list[str]]:
+        records: list[dict] = []
+        failed: list[str] = []
+        with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+            futures = {pool.submit(self.get_product, c): c for c in codes}
+            for future in as_completed(futures):
+                code = futures[future]
+                try:
+                    record = future.result()
+                    records.append(record) if record else failed.append(code)
+                except Exception as exc:
+                    failed.append(code)
+                    print(f"    ! {code}: {exc}", file=sys.stderr)
+        return records, failed
+
     def collect_category(self, category_code: str) -> tuple[list[dict], list[str]]:
         # Листинги Симферополя и Москвы тянутся параллельно: на мелких категориях
         # именно эти два запроса, а не карточки, определяют время обхода.
@@ -152,21 +167,42 @@ class Collector:
                     if item.get("code"):
                         codes[item["code"]] = None
 
-        records: list[dict] = []
-        failed: list[str] = []
-        with ThreadPoolExecutor(max_workers=WORKERS) as pool:
-            futures = {pool.submit(self.get_product, c): c for c in codes}
-            for future in as_completed(futures):
-                code = futures[future]
-                try:
-                    record = future.result()
-                    records.append(record) if record else failed.append(code)
-                except Exception as exc:
-                    failed.append(code)
-                    print(f"    ! {code}: {exc}", file=sys.stderr)
+        records, failed = self._fetch_products(codes)
+        if failed:
+            # то же самое временное дребезжание, что и на уровне категорий —
+            # одна короткая пауза и повтор именно упавших карточек.
+            time.sleep(5)
+            retried, failed = self._fetch_products(failed)
+            records.extend(retried)
 
         records.sort(key=lambda r: (not r["in_stock"], r["title"] or ""))
         return records, failed
+
+
+def _harvest_category(collector: Collector, node: dict, path: list[str], out_dir: Path) -> dict:
+    """Собрать одну категорию и записать файл. Бросает исключение при неудаче."""
+    code = node["code"]
+    out_path = out_dir / f"{safe_name(code)}.json.gz"
+    records, failed = collector.collect_category(code)
+
+    in_stock = sum(1 for r in records if r["in_stock"])
+    meta = {
+        "category": code,
+        "category_name": node.get("name"),
+        "category_path": path,
+        "merchant_id": MERCHANT_ID,
+        "merchant_name": MERCHANT_NAME,
+        "region_id": REGION_ID,
+        "currency": "RUB",
+        "parsed_at": datetime.now(timezone.utc).astimezone().isoformat(),
+        "products_total": len(records),
+        "products_in_stock": in_stock,
+        "products_out_of_stock": len(records) - in_stock,
+        "reviews_total": sum(len(r.get("reviews") or []) for r in records),
+        "failed_codes": failed,
+    }
+    write_json(out_path, {"meta": meta, "products": records})
+    return meta | {"file": out_path.name}
 
 
 def write_by_category(
@@ -181,10 +217,16 @@ def write_by_category(
 
     Общая часть для полного каталога и для пищевого среза — оба раскладывают
     результат одинаково, отличаются только набором категорий и папкой.
-    """
+
+    Категория, упавшая целиком (а не отдельными карточками — это уже
+    разбирается в Collector), почти всегда падает вместе с соседями от
+    одного и того же временного сбоя. Поэтому такие категории не отбрасываются
+    молча, а собираются в список и обходятся вторым проходом в конце —
+    так же, как устроен повтор в snapshot_prices.py."""
     manifest: list[dict] = []
     total_products = 0
     skipped = 0
+    failed_categories: list[tuple[dict, list[str]]] = []
 
     for index, (node, path) in enumerate(leaves, 1):
         code = node.get("code")
@@ -206,38 +248,62 @@ def write_by_category(
             continue
 
         try:
-            records, failed = collector.collect_category(code)
+            entry = _harvest_category(collector, node, path, out_dir)
         except Exception as exc:
             print(f"[{index}/{len(leaves)}] {label} — ОШИБКА: {exc}", file=sys.stderr)
+            failed_categories.append((node, path))
             continue
 
-        in_stock = sum(1 for r in records if r["in_stock"])
-        meta = {
-            "category": code,
-            "category_name": node.get("name"),
-            "category_path": path,
-            "merchant_id": MERCHANT_ID,
-            "merchant_name": MERCHANT_NAME,
-            "region_id": REGION_ID,
-            "currency": "RUB",
-            "parsed_at": datetime.now(timezone.utc).astimezone().isoformat(),
-            "products_total": len(records),
-            "products_in_stock": in_stock,
-            "products_out_of_stock": len(records) - in_stock,
-            "reviews_total": sum(len(r.get("reviews") or []) for r in records),
-            "failed_codes": failed,
-        }
-        write_json(out_path, {"meta": meta, "products": records})
-
-        manifest.append(meta | {"file": out_path.name})
-        total_products += len(records)
+        manifest.append(entry)
+        total_products += entry["products_total"]
         elapsed = time.time() - started
         eta = elapsed / index * (len(leaves) - index)
         print(
-            f"[{index}/{len(leaves)}] {label[:60]} — {len(records)} тов. "
-            f"(в наличии {in_stock}) | уник. карточек {len(collector.cache)} "
+            f"[{index}/{len(leaves)}] {label[:60]} — {entry['products_total']} тов. "
+            f"(в наличии {entry['products_in_stock']}) | уник. карточек {len(collector.cache)} "
             f"| осталось ~{eta / 60:.0f} мин"
         )
+
+    if failed_categories:
+        preview = ", ".join((n.get("code") or "?") for n, _ in failed_categories[:10])
+        print(f"\n! не удалось обойти категорий с первой попытки: {len(failed_categories)} "
+              f"({preview}) — повторяю через 30 секунд", file=sys.stderr)
+        time.sleep(30)
+
+        still_failed: list[tuple[dict, list[str], str]] = []
+        for node, path in failed_categories:
+            label = " / ".join(path)
+            try:
+                entry = _harvest_category(collector, node, path, out_dir)
+            except Exception as exc:
+                print(f"  повтор {label} — ОШИБКА: {exc}", file=sys.stderr)
+                still_failed.append((node, path, str(exc)))
+                continue
+            manifest.append(entry)
+            total_products += entry["products_total"]
+            print(f"  повтор {label} — собрано {entry['products_total']} тов.")
+
+        # категория, не собравшаяся и со второй попытки, остаётся в манифесте
+        # явной пометкой "failed" — вместо того чтобы просто выпасть из него.
+        # Так следующий прогон (в течение дня/на следующий день, см.
+        # weekly-full.yml) видит, что именно осталось дособрать, а не гадает
+        # по разнице с ожидаемым числом категорий.
+        for node, path, error in still_failed:
+            manifest.append({
+                "category": node.get("code"),
+                "category_name": node.get("name"),
+                "category_path": path,
+                "failed": True,
+                "error": error,
+            })
+
+        recovered = len(failed_categories) - len(still_failed)
+        if recovered:
+            print(f"  повтор дособрал {recovered} из {len(failed_categories)} категорий", file=sys.stderr)
+        if still_failed:
+            codes = ", ".join((n.get("code") or "?") for n, _, _ in still_failed)
+            print(f"::error::полный срез: {len(still_failed)} категорий не собрались "
+                  f"даже после повторного прогона — {codes}", file=sys.stderr)
 
     # манифест намеренно не сжимается — он маленький, и в него удобно заглянуть
     write_json(
@@ -254,8 +320,10 @@ def write_by_category(
         },
     )
 
+    failed_final = sum(1 for c in manifest if c.get("failed"))
     print(f"\nГотово за {(time.time() - started) / 60:.1f} мин")
-    print(f"  категорий:        {len(manifest)}" + (f" (пропущено готовых {skipped})" if skipped else ""))
+    print(f"  категорий:        {len(manifest)}" + (f" (пропущено готовых {skipped})" if skipped else "")
+          + (f" (не собралось {failed_final})" if failed_final else ""))
     print(f"  уникальных SKU:   {len(collector.cache)}")
     print(f"  строк в файлах:   {total_products} (товар может быть в нескольких категориях)")
     print(f"  сэкономлено запросов кэшем: {collector.requests_saved}")
