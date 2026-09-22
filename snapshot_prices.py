@@ -29,7 +29,7 @@ from datetime import date
 from pathlib import Path
 
 from auchan_parser import MERCHANT_ID, MERCHANT_NAME, WORKERS, AuchanAPI
-from parse_all_categories import fetch_tree, iter_leaves
+from parse_all_categories import fetch_tree_checked
 from parse_food import ALCOHOL_ROOT, FOOD_ROOTS
 
 
@@ -148,13 +148,8 @@ def main() -> int:
     print(f"Снимок:  {day} | разделов: {len(roots)}" + (" (без алкоголя)" if args.no_alcohol else ""))
     print("\nЗагружаю дерево категорий...")
 
-    tree = [n for n in fetch_tree(api, include_hidden=False) if n.get("code") in roots]
-    missing = roots - {n.get("code") for n in tree}
-    if missing:
-        print(f"  ! в дереве не найдены разделы: {', '.join(sorted(missing))}", file=sys.stderr)
-
-    leaves = list(iter_leaves(tree))
-    print(f"Категорий к обходу: {len(leaves)}\n")
+    tree, leaves = fetch_tree_checked(api, False, "food", roots, typical=not args.no_alcohol)
+    print(f"Разделов: {len(tree)} | категорий к обходу: {len(leaves)}\n")
 
     records = collect(api, leaves)
     if not records:
