@@ -7,6 +7,9 @@ output/*
 !output/snapshots/
 output/snapshots/*
 !output/snapshots/*.parquet
+# и история размеров дерева категорий — по ней прогон понимает, что API
+# отдал дерево короче обычного (в Actions другой памяти между запусками нет)
+!output/snapshots/_tree.json
 
 # Логи прогонов
 *.log
