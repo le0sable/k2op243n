@@ -15,7 +15,8 @@ JSON-файл внутри папки с текущей датой:
   * дерево категорий берётся из /v3/categories/;
   * карточка каждого товара запрашивается ОДИН раз и кэшируется — один
     и тот же SKU лежит в нескольких категориях, без кэша это лишние часы;
-  * прогон возобновляемый: уже готовые файлы категорий пропускаются.
+  * прогон возобновляемый: готовые файлы категорий пропускаются, а записанные
+    с недостающими карточками — дособираются.
 
 Использование:
     python parse_all_categories.py                  # всё товарное дерево, без отзывов
@@ -139,7 +140,7 @@ class Collector:
             self.cache[code] = record
         return record
 
-    def _fetch_products(self, codes) -> tuple[list[dict], list[str]]:
+    def _fetch_products_once(self, codes) -> tuple[list[dict], list[str]]:
         records: list[dict] = []
         failed: list[str] = []
         with ThreadPoolExecutor(max_workers=WORKERS) as pool:
@@ -152,6 +153,16 @@ class Collector:
                 except Exception as exc:
                     failed.append(code)
                     print(f"    ! {code}: {exc}", file=sys.stderr)
+        return records, failed
+
+    def fetch_products(self, codes) -> tuple[list[dict], list[str]]:
+        """Карточки в потоках с одним повтором упавших: то же временное
+        дребезжание API, что и на уровне категорий, проходит за секунды."""
+        records, failed = self._fetch_products_once(codes)
+        if failed:
+            time.sleep(5)
+            retried, failed = self._fetch_products_once(failed)
+            records.extend(retried)
         return records, failed
 
     def collect_category(self, category_code: str) -> tuple[list[dict], list[str]]:
@@ -167,16 +178,21 @@ class Collector:
                     if item.get("code"):
                         codes[item["code"]] = None
 
-        records, failed = self._fetch_products(codes)
-        if failed:
-            # то же самое временное дребезжание, что и на уровне категорий —
-            # одна короткая пауза и повтор именно упавших карточек.
-            time.sleep(5)
-            retried, failed = self._fetch_products(failed)
-            records.extend(retried)
-
+        records, failed = self.fetch_products(codes)
         records.sort(key=lambda r: (not r["in_stock"], r["title"] or ""))
         return records, failed
+
+
+def _counters(records: list[dict], failed: list[str]) -> dict:
+    """Итоги по набору карточек — одинаковые для первой сборки и для досбора."""
+    in_stock = sum(1 for r in records if r["in_stock"])
+    return {
+        "products_total": len(records),
+        "products_in_stock": in_stock,
+        "products_out_of_stock": len(records) - in_stock,
+        "reviews_total": sum(len(r.get("reviews") or []) for r in records),
+        "failed_codes": failed,
+    }
 
 
 def _harvest_category(collector: Collector, node: dict, path: list[str], out_dir: Path) -> dict:
@@ -185,7 +201,6 @@ def _harvest_category(collector: Collector, node: dict, path: list[str], out_dir
     out_path = out_dir / f"{safe_name(code)}.json.gz"
     records, failed = collector.collect_category(code)
 
-    in_stock = sum(1 for r in records if r["in_stock"])
     meta = {
         "category": code,
         "category_name": node.get("name"),
@@ -195,14 +210,33 @@ def _harvest_category(collector: Collector, node: dict, path: list[str], out_dir
         "region_id": REGION_ID,
         "currency": "RUB",
         "parsed_at": datetime.now(timezone.utc).astimezone().isoformat(),
-        "products_total": len(records),
-        "products_in_stock": in_stock,
-        "products_out_of_stock": len(records) - in_stock,
-        "reviews_total": sum(len(r.get("reviews") or []) for r in records),
-        "failed_codes": failed,
+        **_counters(records, failed),
     }
     write_json(out_path, {"meta": meta, "products": records})
     return meta | {"file": out_path.name}
+
+
+def _repair_category(collector: Collector, done_path: Path, existing: dict) -> dict:
+    """Дособрать карточки, упавшие в прошлый прогон, и переписать файл категории.
+
+    Категория с непустым `failed_codes` записана не полностью, но файл у неё
+    есть — и по одному только наличию файла возобновление считало бы её
+    готовой. Поэтому такая категория не пропускается: запрашиваются ровно
+    недостающие карточки и дописываются к уже собранным, а листинг и остальные
+    товары не перезапрашиваются. Код, которого у API больше нет (товар снят
+    с продажи), так и останется в `failed_codes` и будет стоить по одному
+    запросу за прогон — это единицы запросов, не мешает."""
+    meta = dict(existing["meta"])
+    missing = list(dict.fromkeys(meta.get("failed_codes") or []))
+    records, failed = collector.fetch_products(missing)
+
+    products = (existing.get("products") or []) + records
+    products.sort(key=lambda r: (not r["in_stock"], r["title"] or ""))
+
+    meta |= _counters(products, failed)
+    meta["repaired_at"] = datetime.now(timezone.utc).astimezone().isoformat()
+    write_json(done_path, {"meta": meta, "products": products})
+    return meta | {"file": done_path.name, "repaired": len(records)}
 
 
 def write_by_category(
@@ -218,6 +252,11 @@ def write_by_category(
     Общая часть для полного каталога и для пищевого среза — оба раскладывают
     результат одинаково, отличаются только набором категорий и папкой.
 
+    Возобновление смотрит не только на наличие файла категории, но и на её
+    `failed_codes`: категория, записанная с недостающими карточками, при
+    следующем прогоне дособирается (`_repair_category`), а не считается
+    готовой.
+
     Категория, упавшая целиком (а не отдельными карточками — это уже
     разбирается в Collector), почти всегда падает вместе с соседями от
     одного и того же временного сбоя. Поэтому такие категории не отбрасываются
@@ -226,6 +265,7 @@ def write_by_category(
     manifest: list[dict] = []
     total_products = 0
     skipped = 0
+    repaired = 0
     failed_categories: list[tuple[dict, list[str]]] = []
 
     for index, (node, path) in enumerate(leaves, 1):
@@ -238,13 +278,34 @@ def write_by_category(
         # прогон, начатый до включения сжатия, продолжается без перезапроса
         done_path = next((p for p in (out_path, out_path.with_suffix("")) if p.exists()), None)
         if done_path and resume:
-            skipped += 1
             try:
                 existing = read_json(done_path)
-                manifest.append(existing["meta"] | {"file": done_path.name})
-                total_products += existing["meta"]["products_total"]
             except Exception:
-                pass
+                existing = None
+
+            done_meta = ((existing or {}).get("meta")) if isinstance(existing, dict) else None
+            pending = (done_meta or {}).get("failed_codes") or []
+            if pending:
+                print(f"[{index}/{len(leaves)}] {label[:60]} — дособираю {len(pending)} карточек")
+                try:
+                    entry = _repair_category(collector, done_path, existing)
+                except Exception as exc:
+                    # файл остаётся как был, со своим списком недостающих кодов,
+                    # так что следующий прогон попробует ещё раз
+                    print(f"[{index}/{len(leaves)}] {label} — досбор НЕ УДАЛСЯ: {exc}",
+                          file=sys.stderr)
+                    manifest.append(done_meta | {"file": done_path.name})
+                    total_products += done_meta.get("products_total", 0)
+                    continue
+                repaired += entry.pop("repaired")
+                manifest.append(entry)
+                total_products += entry["products_total"]
+                continue
+
+            skipped += 1
+            if done_meta:
+                manifest.append(done_meta | {"file": done_path.name})
+                total_products += done_meta.get("products_total", 0)
             continue
 
         try:
@@ -323,6 +384,7 @@ def write_by_category(
     failed_final = sum(1 for c in manifest if c.get("failed"))
     print(f"\nГотово за {(time.time() - started) / 60:.1f} мин")
     print(f"  категорий:        {len(manifest)}" + (f" (пропущено готовых {skipped})" if skipped else "")
+          + (f" (дособрано карточек {repaired})" if repaired else "")
           + (f" (не собралось {failed_final})" if failed_final else ""))
     print(f"  уникальных SKU:   {len(collector.cache)}")
     print(f"  строк в файлах:   {total_products} (товар может быть в нескольких категориях)")
