@@ -24,43 +24,21 @@ parse_all_categories.py, только без непищевых разделов
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 import time
-from datetime import date
-from pathlib import Path
 
-from auchan_parser import MERCHANT_ID, MERCHANT_NAME, AuchanAPI, category_files
-from parse_all_categories import Collector, fetch_tree, iter_leaves, write_by_category
+from auchan_parser import MERCHANT_ID, MERCHANT_NAME, AuchanAPI
+from parse_all_categories import (
+    Collector,
+    fetch_tree_checked,
+    resolve_out_dir,
+    write_by_category,
+)
 from parse_food import ALCOHOL_ROOT, FOOD_ROOTS
 
 # Папки этого скрипта отделены префиксом, чтобы пищевой срез не смешивался
 # с полной выгрузкой и не подхватывался её механизмом возобновления.
 DIR_PREFIX = "food-"
-
-
-def resolve_out_dir(expected: int, explicit: str | None) -> Path:
-    """Незавершённый пищевой прогон продолжается, даже если сменилась дата."""
-    if explicit:
-        return Path(explicit)
-
-    root = Path("output")
-    dated = sorted(
-        (
-            p
-            for p in root.glob(f"{DIR_PREFIX}*")
-            if p.is_dir() and re.fullmatch(rf"{DIR_PREFIX}\d{{4}}-\d{{2}}-\d{{2}}", p.name)
-        ),
-        key=lambda p: p.name,
-        reverse=True,
-    )
-    for candidate in dated:
-        done = len(category_files(candidate))
-        if 0 < done < expected:
-            print(f"Найден незавершённый прогон в {candidate} ({done} из {expected}) — продолжаю.")
-            return candidate
-
-    return root / f"{DIR_PREFIX}{date.today().isoformat()}"
 
 
 def main() -> int:
@@ -93,17 +71,13 @@ def main() -> int:
     print(f"Отзывы:  {'да' if args.reviews else 'нет (только рейтинг и разбивка по звёздам)'}")
     print("\nЗагружаю дерево категорий...")
 
-    tree = [n for n in fetch_tree(api, include_hidden=False) if n.get("code") in roots]
-    missing = roots - {n.get("code") for n in tree}
-    if missing:
-        print(f"  ! в дереве не найдены разделы: {', '.join(sorted(missing))}", file=sys.stderr)
-
-    leaves = list(iter_leaves(tree))
+    typical = not args.no_alcohol and not args.limit
+    tree, leaves = fetch_tree_checked(api, False, "food", roots, typical=typical)
     if args.limit:
         leaves = leaves[: args.limit]
     print(f"Разделов: {len(tree)} | категорий к обходу: {len(leaves)}")
 
-    out_dir = resolve_out_dir(len(leaves), args.out_dir)
+    out_dir = resolve_out_dir(len(leaves), args.out_dir, DIR_PREFIX, not args.no_resume)
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"Папка:   {out_dir}\n")
 

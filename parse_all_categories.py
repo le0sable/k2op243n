@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import statistics
 import sys
 import threading
 import time
@@ -78,34 +79,150 @@ def iter_leaves(nodes: list[dict], path: list[str] | None = None):
             yield node, here
 
 
+# История размеров дерева: рядом со снимками цен, потому что это единственная
+# папка внутри output/, которая хранится в git — прогон в Actions работает на
+# свежем клоне и другой памяти между запусками у него нет.
+TREE_SIZES = Path("output/snapshots/_tree.json")
+TREE_HISTORY = 14          # сколько последних прогонов считать нормой
+TREE_SHRINK = 0.95         # ниже этой доли от нормы дерево считается усечённым
+
+
+def _tree_sizes() -> dict[str, dict[str, int]]:
+    try:
+        return json.loads(TREE_SIZES.read_text("utf-8"))
+    except Exception:
+        return {}
+
+
+def tree_baseline(scope: str) -> float | None:
+    """Обычный размер дерева по последним прогонам.
+
+    Медиана, а не среднее и не максимум: один короткий день не должен ни
+    сдвигать норму, ни задирать её так, чтобы нормальные дни считались
+    усечёнными."""
+    recent = [v for _, v in sorted(_tree_sizes().get(scope, {}).items())[-TREE_HISTORY:]]
+    return statistics.median(recent) if recent else None
+
+
+def _remember_tree(scope: str, leaves: int) -> None:
+    sizes = _tree_sizes()
+    scoped = sizes.setdefault(scope, {})
+    scoped[date.today().isoformat()] = leaves
+    for stale in sorted(scoped)[: -TREE_HISTORY * 2]:
+        del scoped[stale]
+    TREE_SIZES.parent.mkdir(parents=True, exist_ok=True)
+    TREE_SIZES.write_text(
+        json.dumps(sizes, ensure_ascii=False, indent=1, sort_keys=True) + "\n", "utf-8"
+    )
+
+
+def fetch_tree_checked(
+    api: AuchanAPI,
+    include_hidden: bool,
+    scope: str,
+    roots: set[str] | None = None,
+    typical: bool = True,
+) -> tuple[list[dict], list[tuple[dict, list[str]]]]:
+    """Дерево категорий с проверкой на усечение.
+
+    API время от времени отдаёт дерево без части подразделов: по логам такие дни
+    видно по числу листьев — 568-579 вместо обычных 600-610, и из выгрузки
+    молча пропадают целые категории («Печем сами», «Готовая еда»). Запросы
+    при этом не падают, поэтому повтор упавших категорий тут бесполезен —
+    сверять надо сам размер дерева с последними прогонами.
+
+    Усечённое дерево не прерывает прогон: неполная выгрузка всё равно лучше,
+    чем никакой, а для снимка цен пропущенный день не отыграть. Но день не
+    уходит молча — в лог падает ошибка, которую Actions показывает
+    аннотацией.
+
+    `typical=False` — прогон нетипичный по составу (`--limit`, `--no-alcohol`):
+    дерево у него короче по определению, поэтому с нормой он не сверяется
+    и в историю не пишется, чтобы её не сбивать."""
+
+    def load() -> tuple[list[dict], list[tuple[dict, list[str]]]]:
+        tree = fetch_tree(api, include_hidden)
+        if roots is not None:
+            tree = [n for n in tree if n.get("code") in roots]
+            missing = roots - {n.get("code") for n in tree}
+            if missing:
+                print(f"  ! в дереве не найдены разделы: {', '.join(sorted(missing))}",
+                      file=sys.stderr)
+        return tree, list(iter_leaves(tree))
+
+    tree, leaves = load()
+    usual = tree_baseline(scope) if typical else None
+
+    if usual and len(leaves) < usual * TREE_SHRINK:
+        print(f"  ! дерево короче обычного: {len(leaves)} категорий против ~{usual:.0f} "
+              f"— перезапрашиваю через 10 секунд", file=sys.stderr)
+        time.sleep(10)
+        again_tree, again_leaves = load()
+        if len(again_leaves) > len(leaves):
+            tree, leaves = again_tree, again_leaves
+            print(f"  повтор вернул дерево полнее: {len(leaves)} категорий", file=sys.stderr)
+        if len(leaves) < usual * TREE_SHRINK:
+            print(f"::error::дерево категорий усечено: {len(leaves)} вместо ~{usual:.0f} — "
+                  f"выгрузка будет неполной, часть категорий API не отдал", file=sys.stderr)
+
+    if typical:
+        _remember_tree(scope, len(leaves))
+    return tree, leaves
+
+
 def safe_name(code: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_-]", "_", code)[:120]
 
 
-def resolve_out_dir(expected: int, explicit: str | None) -> Path:
-    """Папка вывода: незавершённый прогон продолжается, даже если сменилась дата.
+# Сколько дней собранная папка ещё считается «этим прогоном». Страховочные
+# прогоны еженедельного среза идут на следующий день после основного, и папка
+# с датой понедельника должна подхватываться во вторник, иначе досбор каждый
+# раз обходит каталог заново вместо того, чтобы проверить готовое.
+RESUME_FRESH_DAYS = 2
+
+
+def resolve_out_dir(
+    expected: int, explicit: str | None, prefix: str = "", resume: bool = True
+) -> Path:
+    """Папка вывода: начатый прогон продолжается, даже если сменилась дата.
 
     Обход длится десятки минут и легко переезжает через полночь. Привязка к
     сегодняшней дате в этом случае завела бы новую папку и начала каталог
-    заново, поэтому берётся самая свежая папка, которая ещё не доведена
-    до конца.
+    заново, поэтому берётся самая свежая подходящая папка — незавершённая
+    в любом случае, а собранная целиком, если ей не больше RESUME_FRESH_DAYS
+    дней. Второе и есть режим досбора: страховочный прогон видит готовую
+    вчерашнюю папку, проверяет её за секунды и добирает недостающее.
+    Свежий обход в такой день — `--no-resume` или явный `--out-dir`.
     """
     if explicit:
         return Path(explicit)
 
     root = Path("output")
     dated = sorted(
-        (p for p in root.glob("*") if p.is_dir() and re.fullmatch(r"\d{4}-\d{2}-\d{2}", p.name)),
+        (
+            p
+            for p in root.glob(f"{prefix}*")
+            if p.is_dir() and re.fullmatch(rf"{re.escape(prefix)}\d{{4}}-\d{{2}}-\d{{2}}", p.name)
+        ),
         key=lambda p: p.name,
         reverse=True,
     )
     for candidate in dated:
         done = len(category_files(candidate))
-        if 0 < done < expected:
+        if not done:
+            continue
+        if done < expected:
             print(f"Найден незавершённый прогон в {candidate} ({done} из {expected}) — продолжаю.")
             return candidate
+        if resume:
+            age = (date.today() - date.fromisoformat(candidate.name[len(prefix):])).days
+            if 0 <= age <= RESUME_FRESH_DAYS:
+                print(f"Прогон в {candidate} уже собран ({done} категорий) — проверяю "
+                      f"и досбираю недостающее, каталог заново не обхожу.")
+                return candidate
+        break
 
-    return root / date.today().isoformat()
+    return root / f"{prefix}{date.today().isoformat()}"
 
 
 class Collector:
@@ -418,14 +535,13 @@ def main() -> int:
     print(f"Отзывы:  {'да' if args.reviews else 'нет (только рейтинг и разбивка по звёздам)'}")
     print("\nЗагружаю дерево категорий...")
 
-    tree = fetch_tree(api, args.include_hidden)
-    leaves = list(iter_leaves(tree))
+    tree, leaves = fetch_tree_checked(api, args.include_hidden, "all", typical=not args.limit)
     if args.limit:
         leaves = leaves[: args.limit]
     print(f"Корневых разделов: {len(tree)} | категорий к обходу: {len(leaves)}")
 
     # папка определяется после дерева: нужно знать, сколько категорий считать полным прогоном
-    out_dir = resolve_out_dir(len(leaves), args.out_dir)
+    out_dir = resolve_out_dir(len(leaves), args.out_dir, resume=not args.no_resume)
     out_dir.mkdir(parents=True, exist_ok=True)
     print(f"Папка:   {out_dir}\n")
 
