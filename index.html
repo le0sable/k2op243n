@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<title>Корзинка — помощник покупок</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+<!-- ---------- каталог ---------- -->
+<header id="top">
+  <div id="cat-head" class="cat-head" hidden>
+    <button id="back" type="button" aria-label="Назад">‹</button>
+    <h1 id="cat-title"></h1>
+  </div>
+  <div class="srch">
+    <svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
+    <input id="q" type="text" placeholder="Найти товар…" autocomplete="off" enterkeyhint="search">
+    <button id="q-clear" type="button" aria-label="Очистить" hidden>✕</button>
+  </div>
+  <div id="cats" class="chips" hidden></div>
+  <div id="toolbar" class="toolbar" hidden>
+    <button id="sort-btn" class="sort-btn" type="button">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4"/></svg>
+      <span id="sort-btn-t">Сортировка</span></button>
+    <label class="chk"><input type="checkbox" id="stock" checked><span>В наличии</span></label>
+  </div>
+</header>
+
+<main id="list-view">
+  <div id="tiles" class="tiles" hidden></div>
+  <p id="legend" class="legend" hidden></p>
+  <div id="list" class="grid"></div>
+  <div id="empty" class="empty" hidden></div>
+</main>
+
+<!-- ---------- список покупок ---------- -->
+<section id="cart-view" class="page" hidden>
+  <h2>Список покупок</h2>
+  <div class="budget-card">
+    <div class="budget-row">
+      <label class="bl">Бюджет
+        <span class="bfield"><input id="budget" type="number" inputmode="numeric" placeholder="—"></span></label>
+      <div id="cart-total" class="total">Итого 0 ₽</div>
+    </div>
+    <div id="bar-track" class="bar-track" hidden><div id="budget-bar" class="bar-fill"></div></div>
+    <p id="budget-hint" class="hint"></p>
+  </div>
+  <div id="cart-items"></div>
+  <button id="cart-clear" class="ghost wide" type="button" hidden>Очистить список</button>
+</section>
+
+<!-- ---------- любимое ---------- -->
+<section id="fav-view" class="page" hidden>
+  <div class="head-row"><h2 id="fav-h">Любимое</h2>
+    <button type="button" class="mini-clear" data-clear="fav" hidden id="fav-clear">очистить всё</button></div>
+  <div id="fav-items"></div>
+</section>
+
+<!-- ---------- моё ---------- -->
+<section id="prefs-view" class="page" hidden>
+  <h2>Моё</h2>
+
+  <button class="acc" type="button" data-acc="bl-brands" aria-expanded="false">
+    <span id="bl-brands-h">Скрытые бренды</span><span class="acc-x">Показать</span></button>
+  <div id="bl-brands" class="acc-body" hidden></div>
+
+  <button class="acc" type="button" data-acc="bl-products" aria-expanded="false">
+    <span id="bl-products-h">Скрытые товары</span><span class="acc-x">Показать</span></button>
+  <div id="bl-products" class="acc-body" hidden></div>
+
+  <div class="info-card">
+    <h3>О данных</h3>
+    <p class="hint" id="meta-info"></p>
+    <p class="hint">Цены и состав — из каталога АШАН Симферополь. «Выгода» считается сравнением
+      с типичной ценой товара по истории, поэтому ярлык скидки на ценнике сюда не попадает
+      автоматически. Оценка состава — по Е-добавкам, флагам и длине состава.</p>
+  </div>
+</section>
+
+<!-- ---------- нижняя навигация ---------- -->
+<nav id="tabs">
+  <button type="button" data-tab="catalog" class="active">
+    <svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></svg>
+    <span>Каталог</span></button>
+  <button type="button" data-tab="cart">
+    <svg viewBox="0 0 24 24"><path d="M4 8h16l-1.6 11H5.6L4 8ZM9 8V5a3 3 0 0 1 6 0v3"/></svg>
+    <span>Список</span><b id="cart-n" hidden></b></button>
+  <button type="button" data-tab="fav">
+    <svg viewBox="0 0 24 24"><path d="M12 20s-7-4.6-7-9.2A4 4 0 0 1 12 8a4 4 0 0 1 7-2.8c0 4.6-7 14.8-7 14.8Z"/></svg>
+    <span>Любимое</span></button>
+  <button type="button" data-tab="prefs">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.4"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+    <span>Моё</span></button>
+</nav>
+
+<!-- ---------- шторка товара ---------- -->
+<div id="card-overlay" hidden>
+  <div id="card" role="dialog" aria-modal="true">
+    <div class="handle-row">
+      <div class="handle"></div>
+      <button id="c-close" class="dots" type="button" aria-label="Закрыть">✕</button>
+    </div>
+    <div id="card-body"></div>
+    <div id="card-foot" class="card-foot"></div>
+  </div>
+</div>
+
+<!-- ---------- шторка сортировки ---------- -->
+<div id="sort-overlay" hidden>
+  <div id="sort-sheet" role="dialog" aria-modal="true" aria-label="Сортировка">
+    <div class="handle-row">
+      <div class="handle"></div>
+      <button id="sort-close" class="dots" type="button" aria-label="Закрыть">✕</button>
+    </div>
+    <div class="sheet-body">
+      <h2>Сортировка</h2>
+      <p class="hint" style="margin-bottom:12px">Можно включить несколько — товары встанут по среднему месту в каждом из выбранных рейтингов.</p>
+      <div id="sort-opts"></div>
+    </div>
+  </div>
+</div>
+
+<button id="to-top" type="button" aria-label="Наверх">
+  <svg viewBox="0 0 24 24"><path d="M12 19V6M6 12l6-6 6 6"/></svg></button>
+
+<div id="toast" class="toast" hidden></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
