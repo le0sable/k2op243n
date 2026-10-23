@@ -7,22 +7,12 @@ output/*
 !output/snapshots/
 output/snapshots/*
 !output/snapshots/*.parquet
-# и история размеров дерева категорий — по ней прогон понимает, что API
-# отдал дерево короче обычного (в Actions другой памяти между запусками нет)
-!output/snapshots/_tree.json
 
 # Логи прогонов
 *.log
-
-# Данные сайта — пересобираются build_site_data.py, публикуются в gh-pages
-web/data/
 
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
-web.zip
-
-# Дизайн-кит для Claude Design — пересобирается build_design_kit.py
-design/

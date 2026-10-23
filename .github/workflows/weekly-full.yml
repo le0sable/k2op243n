@@ -23,7 +23,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write   # публикует данные сайта в gh-pages
+  contents: write   # публикует срез в релиз
 
 concurrency:
   group: weekly-full
@@ -73,27 +73,15 @@ jobs:
           dir=$(ls -d output/food-????-??-?? | sort | tail -1)
           python export_parquet.py "$dir"
 
-      - name: Собрать данные сайта
-        run: python build_site_data.py
-
-      # Артефакт — для быстрой проверки текущего прогона прямо в интерфейсе
-      # Actions; хранится всего 30 дней, поэтому не единственная копия.
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site-data
-          path: web/data/
-          retention-days: 30
-
-      # Постоянное хранение — тот же приём, что и в update_daily.ps1: ветка
-      # gh-pages целиком из web/, перезаписывается force-push'ем, история
-      # не растёт. В отличие от артефакта не истекает через 30 дней.
-      - name: Опубликовать данные сайта в gh-pages
+      # Срез нужен потребителям — проекту «Корзинка» и анализу, — а в раннере он
+      # пропадёт вместе с ним, поэтому публикуется релизом weekly-full (один
+      # релиз, внутри последние четыре недели: food-ГГГГ-ММ-ДД.parquet).
+      # Повторный прогон той же недели перезаписывает файл (--clobber).
+      - name: Опубликовать срез в релиз weekly-full
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name  'github-actions[bot]'
-          git config user.email 'github-actions[bot]@users.noreply.github.com'
-          git --work-tree=web add --all
-          tree=$(git --work-tree=web write-tree)
-          git read-tree HEAD
-          commit=$(git commit-tree "$tree" -m "site data $(date -u +%F)")
-          git update-ref refs/heads/gh-pages "$commit"
-          git push -f origin gh-pages
+          file=$(ls output/food-????-??-??.parquet | sort | tail -1)
+          gh release view weekly-full >/dev/null 2>&1 || gh release create weekly-full             --title "Полный пищевой срез"             --notes "Полный срез пищевых категорий (состав, КБЖУ, характеристики), Parquet. Обновляется раз в неделю, хранятся последние четыре."
+          gh release upload weekly-full "$file" --clobber
+          gh release view weekly-full --json assets --jq '.assets | sort_by(.name) | reverse | .[4:] | .[].name'             | while read -r old; do gh release delete-asset weekly-full "$old" --yes; done
