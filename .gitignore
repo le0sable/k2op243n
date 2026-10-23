@@ -11,6 +11,9 @@ output/snapshots/*
 # Логи прогонов
 *.log
 
+# Заметки по API (локально, в репозиторий не кладём)
+API.md
+
 # Python
 __pycache__/
 *.py[cod]
