@@ -30,6 +30,7 @@ API. Файл лежит рядом локально, но в git не хран�
 | [parse_food.py](parse_food.py) | только пищевые (+ список `FOOD_ROOTS`) | всё одним файлом |
 | [export_parquet.py](export_parquet.py) | — | конвертация выгрузки в Parquet |
 | [snapshot_prices.py](snapshot_prices.py) | пищевые, только цены | один Parquet за день |
+| [products.py](products.py) | справочник код → название | `output/products.csv` |
 
 ```bash
 python auchan_parser.py moloko                     # одна категория
@@ -37,6 +38,7 @@ python parse_food.py --from-dir output/ГГГГ-ММ-ДД  # пищевой ср
 python parse_all_categories.py --reviews           # + тексты отзывов (долго и тяжело)
 python export_parquet.py output/food-ГГГГ-ММ-ДД    # Parquet для анализа
 python snapshot_prices.py                          # снимок цен за сегодня (~30 сек)
+python products.py --backfill                      # дописать в справочник коды из старых снимков
 ```
 
 Зависимости: `pip install -r requirements.txt` (парсерам нужен только `requests`,
@@ -60,7 +62,17 @@ python snapshot_prices.py                          # снимок цен за с
 | `parse_all_categories.py` | `output/ГГГГ-ММ-ДД/<категория>.json.gz` + `_manifest.json` |
 | `parse_food_categories.py` | `output/food-ГГГГ-ММ-ДД/<категория>.json.gz` + `_manifest.json` |
 | `parse_food.py` | `output/food_simferopol_ГГГГ-ММ-ДД.json.gz` |
-| `snapshot_prices.py` | `output/snapshots/ГГГГ-ММ-ДД.parquet` — **единственное, что хранится в git** |
+| `snapshot_prices.py` | `output/snapshots/ГГГГ-ММ-ДД.parquet` + пополняет `output/products.csv` — **только это и хранится в git** |
+
+**Справочник товаров.** В снимке у товара только `code`. Чтобы не запрашивать
+карточку ради названия, снимок попутно ведёт `output/products.csv`: код, название,
+бренд, фасовка, самая глубокая категория, артикул, `product_id` и `first_seen` —
+дата первого появления в снимках. Всё это приходит в том же листинге, лишних
+запросов нет. CSV отсортирован по коду и перезаписывается только при новых
+товарах или смене названия (остаётся последнее), так что в git правки видны
+построчно. Коды, которые были в старых снимках, но сейчас не в наличии,
+дописывает `products.py --backfill` (через карточки; у снятых с сайта товаров
+название пустое). В анализе: `snapshot.merge(load_products(), on="code")`.
 
 Выгрузки сжимаются gzip'ом (в ~8 раз), Parquet ещё в 10 раз меньше. Пищевой срез —
 19 продуктовых разделов (`FOOD_ROOTS` в `parse_food.py`), алкоголь отключается
@@ -75,7 +87,7 @@ python snapshot_prices.py                          # снимок цен за с
 
 | workflow | когда | что делает |
 |---|---|---|
-| [snapshot.yml](.github/workflows/snapshot.yml) | ежедневно 07:00 MSK | `snapshot_prices.py` → коммит `output/snapshots/ГГГГ-ММ-ДД.parquet` |
+| [snapshot.yml](.github/workflows/snapshot.yml) | ежедневно 07:00 MSK | `snapshot_prices.py` → коммит `output/snapshots/ГГГГ-ММ-ДД.parquet` и `output/products.csv` |
 | [weekly-full.yml](.github/workflows/weekly-full.yml) | понедельник 03:00 MSK (+ два досбора) | полный пищевой срез → Parquet → релиз `weekly-full` (последние 4 недели) |
 
 Репозиторий публичный, минуты Actions бесплатны без лимита. Подводные камни:
