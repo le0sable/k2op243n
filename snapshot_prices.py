@@ -10,6 +10,11 @@
 Такие снимки и есть история цен — они дополняют полные срезы. Полный срез нужен реже, раз в неделю, чтобы
 подтянуть состав новых товаров.
 
+В самом снимке у товара только код. Название, бренд, фасовка и категория
+приходят в том же листинге и попутно вливаются в справочник
+`output/products.csv` (см. products.py) — новые товары размечаются в день,
+когда впервые попали в снимок, без отдельных запросов.
+
 Использование:
     python snapshot_prices.py                   # output/snapshots/ГГГГ-ММ-ДД.parquet
     python snapshot_prices.py --no-alcohol
@@ -30,6 +35,8 @@ from pathlib import Path
 from auchan_parser import MERCHANT_ID, MERCHANT_NAME, WORKERS, AuchanAPI
 from parse_all_categories import fetch_tree_checked
 from parse_food import ALCOHOL_ROOT, FOOD_ROOTS
+from products import PRODUCTS_PATH, catalog_record
+from products import update as update_products
 
 
 def snapshot_record(item: dict) -> dict:
@@ -58,9 +65,11 @@ def snapshot_record(item: dict) -> dict:
 
 
 def _fetch_categories(api: AuchanAPI, nodes: list[dict], total: int = 0,
-                       verbose: bool = True) -> tuple[dict[str, dict], list[dict]]:
-    """Один проход по списку узлов дерева. Возвращает (записи, узлы с ошибкой)."""
+                       verbose: bool = True) -> tuple[dict[str, dict], dict[str, dict], list[dict]]:
+    """Один проход по списку узлов дерева.
+    Возвращает (цены, описания товаров для справочника, узлы с ошибкой)."""
     records: dict[str, dict] = {}
+    catalog: dict[str, dict] = {}
     failed: list[dict] = []
     done = 0
 
@@ -82,13 +91,15 @@ def _fetch_categories(api: AuchanAPI, nodes: list[dict], total: int = 0,
                 code = item.get("code")
                 if code and code not in records:
                     records[code] = snapshot_record(item)
+                    catalog[code] = catalog_record(item)
             if verbose and done % 50 == 0:
                 print(f"  [{done}/{total or len(futures)}] уникальных товаров: {len(records)}")
 
-    return records, failed
+    return records, catalog, failed
 
 
-def collect(api: AuchanAPI, leaves: list, verbose: bool = True) -> dict[str, dict]:
+def collect(api: AuchanAPI, leaves: list,
+            verbose: bool = True) -> tuple[dict[str, dict], dict[str, dict]]:
     """Обход листингов в потоках. Товар встречается в нескольких категориях —
     остаётся первая запись, они по цене и остатку совпадают.
 
@@ -96,16 +107,17 @@ def collect(api: AuchanAPI, leaves: list, verbose: bool = True) -> dict[str, dic
     с соседями от одного и того же временного сбоя (Qrator, перегрузка) —
     поэтому упавшие обходятся вторым проходом через паузу, а не сразу же."""
     nodes = [node for node, _ in leaves]
-    records, failed = _fetch_categories(api, nodes, total=len(nodes), verbose=verbose)
+    records, catalog, failed = _fetch_categories(api, nodes, total=len(nodes), verbose=verbose)
 
     if failed:
         codes = [n.get("code") or "?" for n in failed]
         print(f"\n! не удалось обойти категорий с первой попытки: {len(failed)} "
               f"({', '.join(codes[:10])}) — повторяю через 10 секунд", file=sys.stderr)
         time.sleep(10)
-        retried, still_failed = _fetch_categories(api, failed, verbose=False)
+        retried, retried_catalog, still_failed = _fetch_categories(api, failed, verbose=False)
         for code, record in retried.items():
             records.setdefault(code, record)
+            catalog.setdefault(code, retried_catalog[code])
 
         recovered = len(failed) - len(still_failed)
         if recovered:
@@ -115,7 +127,7 @@ def collect(api: AuchanAPI, leaves: list, verbose: bool = True) -> dict[str, dic
             print(f"::error::снимок цен: {len(still_failed)} категорий не собрались "
                   f"даже после повторного прогона — {', '.join(codes)}", file=sys.stderr)
 
-    return records
+    return records, catalog
 
 
 def main() -> int:
@@ -150,13 +162,14 @@ def main() -> int:
     tree, leaves = fetch_tree_checked(api, False, "food", roots, typical=not args.no_alcohol)
     print(f"Разделов: {len(tree)} | категорий к обходу: {len(leaves)}\n")
 
-    records = collect(api, leaves)
+    records, catalog = collect(api, leaves)
     if not records:
         sys.exit("не собрано ни одного товара — снимок не записан")
 
     df = pd.DataFrame(list(records.values()))
     df.insert(1, "date", day)
     df.to_parquet(out, index=False, compression="zstd")
+    added, renamed = update_products(list(catalog.values()), day)
 
     priced = int(df.price.notna().sum())
     in_stock = int(df.in_stock.sum())
@@ -164,6 +177,7 @@ def main() -> int:
     print(f"\nГотово за {(time.time() - started) / 60:.1f} мин")
     print(f"  товаров:      {len(df)} (с ценой {priced}, в наличии {in_stock}, со скидкой {on_sale})")
     print(f"  файл:         {out} ({out.stat().st_size / 1024:.0f} КБ)")
+    print(f"  справочник:   {PRODUCTS_PATH} (новых {added}, обновлено {renamed})")
     return 0
 
 
